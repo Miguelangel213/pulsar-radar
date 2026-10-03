@@ -35,6 +35,10 @@ gates:
   dev_holding:     { severity: red_flag, max_rate: 0.15 }
   dev_rug_history: { severity: reject,   max_rugs: 1 }
 
+links:
+  # PROVISIONAL: formato de URL pública de GMGN, sin confirmar con documentación oficial.
+  gmgn_token_url: "https://gmgn.ai/sol/token/{address}"
+
 # ---------------------------------------------------------------------------
 # Scoring (etapa 3). Reglas explícitas, sin ML. Valores PROVISIONALES.
 # Un "ramp" mapea lineal [lo, hi] -> [0, 100] con tope en los extremos.

@@ -43,7 +43,9 @@ def create_app(service: Optional[RadarService] = None) -> FastAPI:
         except ValueError as e:
             raise HTTPException(422, str(e))
         return {"mode": service.ingest.adapter.mode, "stage": stage.value, "generated_at": time.time(),
-                "count": len(items), "disclaimer": service.cfg["scoring"]["disclaimer"],
+                "count": len(items),
+                "meta": {"quadrant": service.cfg["scoring"]["ranking"]["quadrant"], "gmgn_token_url": service.cfg["links"]["gmgn_token_url"]},
+                "disclaimer": service.cfg["scoring"]["disclaimer"],
                 "items": [i.model_dump() for i in items]}
 
     return app

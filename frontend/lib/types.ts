@@ -17,6 +17,7 @@ export interface RadarItem {
 }
 export interface RadarResponse {
   mode: "MOCK" | "REAL"; stage: StageKey; generated_at: number; count: number; disclaimer: string; items: RadarItem[];
+  meta: { quadrant: { min_potential: number; max_risk: number }; gmgn_token_url: string };
 }
 export interface Filters { riskLevel: RiskLevel | ""; maxAge: string; minLiquidity: string; includeRejected: boolean }
 

@@ -1,0 +1,7 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "radar-api", "runtimeExecutable": "python3", "runtimeArgs": ["-m", "uvicorn", "api.main:app", "--port", "8000", "--app-dir", "backend"], "port": 8000 },
+    { "name": "radar-web", "runtimeExecutable": "npm", "runtimeArgs": ["--prefix", "frontend", "run", "dev"], "port": 3000 }
+  ]
+}

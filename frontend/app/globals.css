@@ -38,3 +38,7 @@ body { min-height: 100dvh; -webkit-font-smoothing: antialiased; }
   grid-template-columns: 32px minmax(270px, 1.8fr) 64px 84px 84px 84px 72px minmax(130px, 1fr) minmax(130px, 0.9fr); }
 
 @media (max-width: 639px) { .radar-grid { grid-template-columns: 22px minmax(0, 1fr) 92px auto; column-gap: 10px; } }
+
+@keyframes panel-in { from { transform: translateX(24px); opacity: 0 } to { transform: none; opacity: 1 } }
+.panel-in { animation: panel-in .22s cubic-bezier(.2,.7,.2,1); }
+@media (prefers-reduced-motion: reduce) { .panel-in { animation: none; } }

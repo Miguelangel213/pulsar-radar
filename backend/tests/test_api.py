@@ -64,3 +64,9 @@ def test_invalid_params(client):
     assert client.get("/radar", params={"sort": "nope"}).status_code == 422
     assert client.get("/radar", params={"risk_level": "x"}).status_code == 422
     assert client.get("/radar", params={"stage": "x"}).status_code == 422
+
+
+def test_meta_exposes_quadrant_and_link_template(client):
+    m = get(client, stage="graduated")["meta"]
+    assert m["quadrant"] == {"min_potential": 60, "max_risk": 35}
+    assert "{address}" in m["gmgn_token_url"]

@@ -13,7 +13,7 @@ const COLS: Col[] = [
   { label: "Potencial", sort: "potential" }, { label: "Riesgo", sort: "risk" },
 ];
 
-export function RadarTable({ items, sort, onSort }: { items: RadarItem[]; sort: SortKey; onSort: (s: SortKey) => void }) {
+export function RadarTable({ items, sort, onSort, onSelect, selected }: { items: RadarItem[]; sort: SortKey; onSort: (s: SortKey) => void; onSelect: (i: RadarItem) => void; selected?: string }) {
   const rows = useRef(new Map<string, HTMLElement>());
   const tops = useRef(new Map<string, number>());
 
@@ -51,8 +51,8 @@ export function RadarTable({ items, sort, onSort }: { items: RadarItem[]; sort: 
         {items.map((it, i) => {
           const t = it.entry.token, rejected = it.entry.verdict === "rejected";
           return (
-            <div key={t.address} role="row" ref={(el) => { if (el) rows.current.set(t.address, el); else rows.current.delete(t.address); }}
-              className={`radar-grid px-4 sm:px-6 py-3 border-b border-line hover:bg-raise transition-colors ${rejected ? "opacity-45" : ""} ${it.quadrant ? "shadow-[inset_2px_0_0_var(--color-solid)]" : ""}`}>
+            <div key={t.address} role="row" tabIndex={0} onClick={() => onSelect(it)} onKeyDown={(e) => { if (e.key === "Enter") onSelect(it); }} aria-selected={selected === t.address} ref={(el) => { if (el) rows.current.set(t.address, el); else rows.current.delete(t.address); }}
+              className={`radar-grid px-4 sm:px-6 py-3 border-b border-line cursor-pointer hover:bg-raise transition-colors ${selected === t.address ? "bg-raise" : ""} ${rejected ? "opacity-45" : ""} ${it.quadrant ? "shadow-[inset_2px_0_0_var(--color-solid)]" : ""}`}>
               <div role="cell" className="num text-[12px] text-faint">{i + 1}</div>
               <div role="cell" className="min-w-0">
                 <div className="flex items-baseline gap-2">
