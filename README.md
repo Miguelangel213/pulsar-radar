@@ -42,6 +42,8 @@ npm test                 # el motor TypeScript debe dar EXACTAMENTE lo mismo que
 
 El motor TypeScript ([`frontend/lib/engine`](frontend/lib/engine)) es un port del Python y lo verifica un test de paridad: 196 casos (valores límite y aleatorios), una captura real de DexScreener, más de 100 combinaciones de filtros/órdenes y una secuencia de alertas, todos con el resultado esperado calculado por el código Python (`backend/scripts/make_parity_fixtures.py`). Los umbrales se generan desde [`backend/config/radar.yaml`](backend/config/radar.yaml), que sigue siendo la única fuente de verdad.
 
+El workflow [`.github/workflows/pages.yml`](.github/workflows/pages.yml) ejecuta los tests (Python y TypeScript), compila la versión estática y la despliega en GitHub Pages en cada push a `main`.
+
 ## Cómo funciona
 
 ```

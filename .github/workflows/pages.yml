@@ -1,0 +1,64 @@
+name: Tests y despliegue en GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Tests del backend
+        run: |
+          pip install -r backend/requirements.txt
+          cd backend && python -m pytest -q
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Instalar frontend
+        run: npm ci
+        working-directory: frontend
+      - name: Tests del motor TypeScript (paridad con Python)
+        run: npm test
+        working-directory: frontend
+      - name: Comprobar tipos
+        run: npx tsc --noEmit
+        working-directory: frontend
+      - name: Compilar versión estática
+        run: BASE_PATH=/${{ github.event.repository.name }} npm run build:static
+        working-directory: frontend
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/out
+
+  deploy:
+    # Solo despliega si el repositorio es público (GitHub Pages gratis exige repo público)
+    if: ${{ !github.event.repository.private }}
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
