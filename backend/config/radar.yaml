@@ -1,0 +1,36 @@
+# Radar de Memecoins — configuración central.
+# TODOS los umbrales y pesos viven aquí, nunca en el código.
+# AVISO: los valores son PROVISIONALES (no vienen del demo oficial de GMGN, que no está
+# disponible). Se calibrarán en la etapa 8 con datos reales.
+
+mode:
+  env_file: "~/.config/gmgn/.env"   # si existe GMGN_API_KEY -> datos reales (etapa 8); si no -> MOCK
+
+stages:                              # definición de las etapas de ingesta
+  new_creation:   { label: "Recién creados",   max_age_min: 30 }
+  near_graduation: { label: "Por graduarse",   min_curve_progress: 0.80 }
+  graduated:      { label: "Recién graduados", max_age_since_graduation_min: 120 }
+  trending:       { label: "Tendencias" }
+
+cache:
+  ttl_seconds: { new_creation: 5, near_graduation: 8, graduated: 15, trending: 20 }
+  backoff: { max_retries: 4, base_delay_s: 0.5, factor: 2.0, max_delay_s: 8.0 }
+
+mock:
+  seed: 1013
+  spawn_every_s: 90
+  window_min: 180
+
+# Hard gates. severity: "reject" = descarte, "red_flag" = marca roja (se muestra, no descarta).
+gates:
+  honeypot:        { severity: reject }
+  buy_tax:         { severity: reject,   max_pct: 10 }
+  sell_tax:        { severity: reject,   max_pct: 10 }
+  mint_authority:  { severity: red_flag }    # mint sin renunciar
+  freeze_authority: { severity: red_flag }   # freeze sin renunciar
+  rug_ratio:       { severity: reject,   max: 0.30 }
+  bundlers:        { severity: red_flag, max_rate: 0.25 }
+  snipers:         { severity: red_flag, max_rate: 0.20 }
+  top10_concentration: { severity: red_flag, max_rate: 0.40 }
+  dev_holding:     { severity: red_flag, max_rate: 0.15 }
+  dev_rug_history: { severity: reject,   max_rugs: 1 }
