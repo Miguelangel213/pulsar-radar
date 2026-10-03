@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@theme {
+  --color-void: #050505;
+  --color-panel: #0b0b0c;
+  --color-raise: #121214;
+  --color-line: #1d1d20;
+  --color-line-strong: #2b2b30;
+  --color-ink: #ebe8e4;
+  --color-dim: #86868d;
+  --color-faint: #4c4c52;
+  --color-flame: #ff4524;
+  --color-solid: #26d29a;
+  --color-moderate: #e9cf47;
+  --color-high: #ff8f1f;
+  --color-extreme: #ff2d55;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-serif: var(--font-serif-display), Georgia, serif;
+}
+
+html, body { background: var(--color-void); color: var(--color-ink); font-family: var(--font-sans); }
+body { min-height: 100dvh; -webkit-font-smoothing: antialiased; }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+
+:focus-visible { outline: 1px solid var(--color-flame); outline-offset: 2px; }
+::selection { background: var(--color-flame); color: #000; }
+* { scrollbar-width: thin; scrollbar-color: var(--color-line-strong) transparent; }
+
+@keyframes pulse-dot { 0%, 100% { opacity: 1 } 50% { opacity: .25 } }
+.pulse-dot { animation: pulse-dot 1.6s ease-in-out infinite; }
+@keyframes shimmer { from { background-position: -200% 0 } to { background-position: 200% 0 } }
+.skeleton { background: linear-gradient(90deg, var(--color-raise) 30%, #1a1a1d 50%, var(--color-raise) 70%); background-size: 200% 100%; animation: shimmer 1.6s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .pulse-dot, .skeleton { animation: none; } }
+
+/* Rejilla de la tabla: una sola definición para cabecera y filas */
+.radar-grid { display: grid; align-items: center; column-gap: 14px;
+  grid-template-columns: 32px minmax(270px, 1.8fr) 64px 84px 84px 84px 72px minmax(130px, 1fr) minmax(130px, 0.9fr); }
+
+@media (max-width: 639px) { .radar-grid { grid-template-columns: 22px minmax(0, 1fr) 92px auto; column-gap: 10px; } }

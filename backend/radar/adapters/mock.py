@@ -6,6 +6,7 @@ from typing import Callable, List
 
 from ..models import Stage, Token
 
+B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 NARRATIVES = ["ai", "politics", "cats", "dogs", "gaming", "celebrity", "anime", "memes"]
 ARCHETYPES = [("solid", 0.30), ("average", 0.35), ("risky", 0.20), ("honeypot", 0.08), ("rugdev", 0.07)]
 
@@ -35,7 +36,7 @@ class MockAdapter:
         sells = int(buys * (r.uniform(0.7, 1.3) if bad else r.uniform(0.2, 0.6)))
         tag = r.choice(NARRATIVES)
         return Token(
-            address=f"MOCK{i:05d}{r.randrange(10**8):08d}pump", symbol=f"{tag[:3].upper()}{i % 1000}", name=f"{tag.title()} Coin {i}",
+            address="".join(r.choices(B58, k=40)) + "pump", symbol=f"{tag[:3].upper()}{i % 1000}", name=f"{tag.title()} Coin {i}",
             stage=stage, age_min=round(age_min, 2), price=cap / 1e9, market_cap=round(cap, 2),
             liquidity=round(cap * r.uniform(0.15, 0.45) * (0.4 if bad else 1), 2),
             volume=round(cap * r.uniform(0.5, 4) * (age_min / 30 + 0.2), 2),
