@@ -1,82 +1,85 @@
-# Radar de Memecoins — configuración central.
+# Radar de Memecoins — configuración central (fuente: DexScreener, sin API key).
 # TODOS los umbrales y pesos viven aquí, nunca en el código.
-# AVISO: los valores son PROVISIONALES (no vienen del demo oficial de GMGN, que no está
-# disponible). Se calibrarán en la etapa 8 con datos reales.
+# Los valores son PROVISIONALES: se calibran mirando datos reales y /aciertos (etapa de validación).
 
-mode:
-  env_file: "~/.config/gmgn/.env"   # si existe GMGN_API_KEY -> datos reales (etapa 8); si no -> MOCK
+dexscreener:
+  base_url: "https://api.dexscreener.com"
+  chain: solana
+  timeout_s: 10
+  # Límites documentados por DexScreener: 300 req/min (search, tokens, pairs) y 60 req/min (boosts, profiles).
+  # Se usa un margen de seguridad por debajo.
+  rate_limits:                      # llamadas por ventana de 60 s
+    search: 240
+    tokens: 240
+    pairs: 240
+    boosts: 50
+    profiles: 50
+  cache_ttl_s:                      # DexScreener cachea ~60 s los listados de boosts/perfiles
+    search: 20
+    tokens: 10
+    pairs: 15
+    boosts: 60
+    profiles: 60
+  backoff: { max_retries: 3, base_delay_s: 0.5, factor: 2.0, max_delay_s: 6.0 }
 
-stages:                              # definición de las etapas de ingesta
-  new_creation:   { label: "Recién creados",   max_age_min: 30 }
-  near_graduation: { label: "Por graduarse",   min_curve_progress: 0.80 }
-  graduated:      { label: "Recién graduados", max_age_since_graduation_min: 120 }
-  trending:       { label: "Tendencias" }
+scanner:
+  scan_interval_s: 15               # mínimo entre escaneos completos (las peticiones del front reutilizan el último)
+  batch_size: 30                    # direcciones por llamada a /tokens/v1 (máximo de DexScreener)
+  search_queries: []                # búsquedas extra para descubrir tokens, p. ej. ["pump"]. Vacío = solo boosts y perfiles
+  max_tracked: 150                  # tokens seguidos a la vez
+  track_hours: 26                   # cuánto se sigue un token tras verlo por última vez (cubre el chequeo a 24 h)
+  history_interval_s: 60            # mínimo entre dos filas de historial por token
+  history_max_rows: 40000
+  data_dir: "data"
 
-cache:
-  ttl_seconds: { new_creation: 5, near_graduation: 8, graduated: 15, trending: 20 }
-  backoff: { max_retries: 4, base_delay_s: 0.5, factor: 2.0, max_delay_s: 8.0 }
+# Etapas = reglas sobre campos de DexScreener (no existe un feed oficial de "tokens nuevos").
+stages:
+  new_creation:    { label: "Recién creados",   max_age_min: 120 }
+  near_graduation: { label: "Por graduarse",    bonding_dex_ids: [pumpfun], min_market_cap_usd: 40000 }   # observado: los pares nacen en pumpswap con ~$56K de market cap
+  graduated:       { label: "Recién graduados", dex_ids: [pumpswap, raydium], max_age_min: 1440 }
+  trending:        { label: "Tendencias" }          # tokens con boost activo o en las listas de boosts
 
-mock:
-  seed: 1013
-  spawn_every_s: 90
-  window_min: 180
-
-# Hard gates. severity: "reject" = descarte, "red_flag" = marca roja (se muestra, no descarta).
+# Hard gates: solo con datos que DexScreener sí entrega. severity: reject = descarte, red_flag = marca roja.
 gates:
-  honeypot:        { severity: reject }
-  buy_tax:         { severity: reject,   max_pct: 10 }
-  sell_tax:        { severity: reject,   max_pct: 10 }
-  mint_authority:  { severity: red_flag }    # mint sin renunciar
-  freeze_authority: { severity: red_flag }   # freeze sin renunciar
-  rug_ratio:       { severity: reject,   max: 0.30 }
-  bundlers:        { severity: red_flag, max_rate: 0.25 }
-  snipers:         { severity: red_flag, max_rate: 0.20 }
-  top10_concentration: { severity: red_flag, max_rate: 0.40 }
-  dev_holding:     { severity: red_flag, max_rate: 0.15 }
-  dev_rug_history: { severity: reject,   max_rugs: 1 }
-
-links:
-  # Formato de página de token según la documentación oficial de gmgn-cli (README).
-  gmgn_token_url: "https://gmgn.ai/?chain=sol&token={address}"
+  min_liquidity:  { severity: reject,   min_usd: 1500 }
+  min_activity:   { severity: red_flag, min_txns_h1: 5, applies_after_min: 30 }
+  dump_h1:        { severity: red_flag, min_change_pct: -60 }
+  sell_wall:      { severity: red_flag, max_sell_to_buy: 2.0, min_txns_h1: 20 }
 
 # ---------------------------------------------------------------------------
-# Scoring (etapa 3). Reglas explícitas, sin ML. Valores PROVISIONALES.
-# Un "ramp" mapea lineal [lo, hi] -> [0, 100] con tope en los extremos.
+# Scoring inicial. Reglas explícitas, sin ML. "ramp" mapea lineal [lo, hi] -> [0, 100].
 # ---------------------------------------------------------------------------
 scoring:
-  unknown_neutral: 50          # subpuntaje cuando no hay ningún dato
-  risk:                        # 0 = sin riesgo, 100 = riesgo máximo
-    weights: { contract: 0.30, liquidity: 0.20, holders: 0.25, dev: 0.15, age: 0.10 }
-    levels: { solid_max: 25, moderate_max: 50, high_max: 75 }   # >75 = Extremo
-    contract: { tax_ramp: [0, 20], rug_ramp: [0, 0.5], mint_points: 20, freeze_points: 15 }
-    liquidity: { liq_ramp: [2000, 20000], liq_to_mcap_ramp: [0.05, 0.30] }
-    holders: { top10_ramp: [0.15, 0.60], bundler_ramp: [0.05, 0.40], sniper_ramp: [0.05, 0.35], holders_count_ramp: [50, 500] }
-    dev: { hold_ramp: [0.02, 0.30], rugs_ramp: [0, 3], sold_points: 20 }
-    age: { age_ramp_min: [0, 60] }       # más joven = más riesgo
-  potential:                   # 0 = sin señales, 100 = señales máximas
-    weights: { velocity: 0.25, buyers: 0.25, pressure: 0.20, dev: 0.15, narrative: 0.15 }
-    velocity: { pace_ramp: [0.01, 0.08], buyers_per_min_ramp: [1, 15] }
-    buyers: { smart_money_ramp: [0, 5], kol_ramp: [0, 3], early_entry_max_min: 5, early_bonus: 10 }
-    pressure: { buy_ratio_ramp: [0.5, 0.8], volume_to_mcap_ramp: [0.3, 3.0] }
-    dev: { clean_base: 60, per_launch_points: 3, max_launch_points: 20, sold_penalty: 40 }
-    narrative: { trending_share_ramp: [0.10, 0.35] }
+  unknown_neutral: 50
+  min_txns_h1: 10                  # muestra mínima para confiar en el ratio compras/ventas de 1 h
+  min_txns_m5: 6
+  risk:                            # 0 = sin riesgo de mercado, 100 = máximo
+    weights: { liquidity: 0.30, age: 0.15, sell_pressure: 0.25, drop: 0.15, contract: 0.15 }
+    levels: { solid_max: 20, moderate_max: 35, high_max: 50 }   # escala comprimida: 'contract' fijo en 50 aporta 7.5 puntos
+    liquidity: { liq_ramp: [3000, 40000], liq_to_mcap_ramp: [0.03, 0.25] }
+    age: { age_ramp_min: [0, 180] }                  # más joven = más riesgo
+    sell_pressure: { sell_ratio_ramp: [0.50, 0.70] }
+    drop: { drop_ramp_pct: [5, 50] }                 # caída de precio en 1 h
+    contract_unavailable: 50                         # DexScreener no entrega seguridad del contrato
+  potential:                       # 0 = sin señales, 100 = señales máximas
+    weights: { liquidity: 0.20, volume: 0.25, market_cap: 0.15, age: 0.10, buy_sell: 0.30 }
+    liquidity: { liq_ramp: [3000, 60000] }
+    volume: { turnover_ramp: [0.02, 0.6], volume_h1_ramp: [300, 30000] }   # volumen 1h / market cap, y volumen 1h absoluto
+    market_cap: { log10_ramp: [4.0, 6.5] }           # más espacio de crecimiento con market cap bajo ($10K -> $3M)
+    age: { age_ramp_min: [10, 1440] }                # más reciente = más espacio
+    buy_sell: { buy_ratio_ramp: [0.45, 0.65], h1_weight: 0.6, m5_weight: 0.4 }
   ranking:
-    risk_penalty: 0.8          # ajustado = potencial * (1 - riesgo/100 * penalty)
-    quadrant: { min_potential: 60, max_risk: 35 }   # "alto potencial, bajo riesgo"
-  disclaimer: "El potencial es una probabilidad basada en señales observables. No es una predicción de precio ni una recomendación de compra."
+    risk_penalty: 0.8              # ajustado = potencial * (1 - riesgo/100 * penalty)
+    quadrant: { min_potential: 65, max_risk: 25 }    # "alto potencial, bajo riesgo"
+  disclaimer: "El potencial es una probabilidad basada en señales de mercado de DexScreener. No es una predicción de precio ni una recomendación de compra. DexScreener no entrega seguridad del contrato, holders, dev ni smart money."
 
 # ---------------------------------------------------------------------------
-# Alertas (etapa 6). Se evalúan en cada consulta a /alerts. Cada (tipo, token) se dispara una sola vez.
+# Alertas. Se evalúan en cada consulta a /alerts. Cada token se alerta una sola vez.
 # ---------------------------------------------------------------------------
 alerts:
-  stages: [new_creation, near_graduation, graduated]   # etapas que se vigilan
-  quadrant_entry: true                 # token entra a "alto potencial, bajo riesgo"
-  smart_money:
-    enabled: true
-    max_age_min: 10                    # X: minutos de vida máximos para la alerta de smart money
-    min_buyers: 1                      # wallets smart money mínimas
+  stages: [new_creation, near_graduation, graduated]
+  quadrant_entry: true
   max_stored: 200
-  sound:                               # frecuencias (Hz) de las dos notas de cada alerta, y volumen 0-1
+  sound:                           # frecuencias (Hz) de las dos notas y volumen 0-1
     quadrant: [660, 990]
-    smart_money: [880, 1320]
     volume: 0.12

@@ -6,32 +6,39 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from radar.adapters import get_adapter
-from radar.alerts import AlertService
+from clients.dexscreener_client import DexScreenerClient, DexScreenerError
 from radar.config import load_config
-from radar.ingest import IngestService
 from radar.models import Stage
-from radar.service import SORT_KEYS, RadarService
+from services.alerts import AlertService
+from services.radar_service import SORT_KEYS, RadarService
+from services.token_scanner import TokenScanner, best_pair_per_token, normalize_pair, classify
+from scoring.gates import build_entry
+from scoring.scoring_engine import score_entry
+
+SOURCE = "DEXSCREENER"
+COVERAGE = ("Fuente: DexScreener (sin API key). No existe un feed oficial de todos los tokens nuevos: el radar descubre tokens por sus boosts "
+            "y perfiles publicados. No incluye seguridad del contrato, holders, dev ni smart money.")
 
 
-def create_app(service: Optional[RadarService] = None) -> FastAPI:
+def create_app(service: Optional[RadarService] = None, client: Optional[DexScreenerClient] = None) -> FastAPI:
     cfg = load_config()
     if service is None:
-        adapter = get_adapter(cfg)
-        service = RadarService(IngestService(adapter, cfg), cfg)
+        client = client or DexScreenerClient(cfg)
+        service = RadarService(TokenScanner(client, cfg), cfg)
+    client = client or service.scanner.client
     alerts = AlertService(service, service.cfg)
-    app = FastAPI(title="Radar de Memecoins", description="Solo lectura. Sin órdenes de compra/venta.")
-    app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-                       allow_methods=["GET"], allow_headers=["*"])
+    app = FastAPI(title="Radar de Memecoins", description="Solo lectura. Datos de DexScreener. Sin órdenes de compra/venta.")
+    app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"], allow_methods=["GET"], allow_headers=["*"])
 
     @app.get("/health")
     def health():
-        return {"ok": True, "mode": service.ingest.adapter.mode}
+        sc = service.scanner
+        return {"ok": True, "source": SOURCE, "tracked": len(sc.tracked), "last_scan": sc.last_scan, "last_error": sc.last_error, "api_calls": client.calls}
 
     @app.get("/radar")
     def radar(stage: Stage = Stage.NEW,
               risk_level: Optional[str] = Query(None, description="Sólido | Moderado | Alto | Extremo"),
-              max_age: Optional[float] = Query(None, ge=0, description="edad máxima en minutos"),
+              max_age: Optional[float] = Query(None, ge=0, description="edad máxima del par en minutos"),
               min_liquidity: Optional[float] = Query(None, ge=0),
               min_mcap: Optional[float] = Query(None, ge=0),
               max_mcap: Optional[float] = Query(None, ge=0),
@@ -44,11 +51,35 @@ def create_app(service: Optional[RadarService] = None) -> FastAPI:
             items = service.query(stage, risk_level, max_age, min_liquidity, min_mcap, max_mcap, sort, order, include_rejected)
         except ValueError as e:
             raise HTTPException(422, str(e))
-        return {"mode": service.ingest.adapter.mode, "stage": stage.value, "generated_at": time.time(),
-                "count": len(items),
-                "meta": {"quadrant": service.cfg["scoring"]["ranking"]["quadrant"], "gmgn_token_url": service.cfg["links"]["gmgn_token_url"]},
-                "disclaimer": service.cfg["scoring"]["disclaimer"],
-                "items": [i.model_dump() for i in items]}
+        except DexScreenerError as e:
+            raise HTTPException(502, str(e))
+        return {"mode": SOURCE, "stage": stage.value, "generated_at": time.time(), "count": len(items),
+                "meta": {"quadrant": service.cfg["scoring"]["ranking"]["quadrant"], "coverage": COVERAGE,
+                         "last_scan": service.scanner.last_scan, "last_error": service.scanner.last_error},
+                "disclaimer": service.cfg["scoring"]["disclaimer"], "items": [i.model_dump() for i in items]}
+
+    @app.get("/search")
+    def search(q: str = Query(..., min_length=2)):
+        """Busca en DexScreener (solo tokens de la cadena configurada) y los puntúa. No se guardan."""
+        try:
+            pairs = client.search(q)
+        except DexScreenerError as e:
+            raise HTTPException(502, str(e))
+        now_ms = time.time() * 1000
+        out = []
+        for addr, pair in best_pair_per_token(pairs, client.chain).items():
+            t = normalize_pair(pair, now_ms); t.stages = classify(t, service.cfg)
+            out.append(score_entry(build_entry(t, service.cfg), service.cfg).model_dump())
+        out.sort(key=lambda x: -x["adjusted"])
+        return {"query": q, "count": len(out), "items": out}
+
+    @app.get("/pairs/{address}")
+    def pairs(address: str):
+        """Todos los pools de un token (token-pairs/v1)."""
+        try:
+            return {"address": address, "pairs": client.token_pairs(address)}
+        except DexScreenerError as e:
+            raise HTTPException(502, str(e))
 
     @app.get("/alerts")
     def get_alerts(after: Optional[int] = Query(None, ge=0, description="devuelve solo eventos con id mayor")):

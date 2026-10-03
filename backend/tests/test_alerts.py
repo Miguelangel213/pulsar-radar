@@ -1,83 +1,60 @@
-from radar.alerts import AlertService
-from radar.config import load_config
-from radar.gates import build_entry
 from radar.models import Stage
-from radar.scoring import score_entry
-from tests.test_gates import tok
+from services.alerts import AlertService
+from radar.config import load_config
+from scoring.gates import build_entry
+from scoring.scoring_engine import score_entry
+from services.token_scanner import classify, normalize_pair
+from tests.helpers import NOW, pair
+
+CFG = load_config()
 
 
 class Stub:
-    def __init__(self, cfg):
-        self.cfg, self.data = cfg, {}
-
+    def __init__(self):
+        self.pairs = []
     def scored(self, stage):
-        return [score_entry(build_entry(t, self.cfg), self.cfg, {}) for t in self.data.get(stage, [])]
+        out = []
+        for p in self.pairs:
+            t = normalize_pair(p, NOW * 1000); t.stages = classify(t, CFG)
+            s = score_entry(build_entry(t, CFG), CFG)
+            if stage.value in t.stages:
+                out.append(s)
+        return out
 
 
-def make(**cfg_over):
-    cfg = load_config()
-    cfg["scoring"]["ranking"]["quadrant"] = {"min_potential": 0, "max_risk": 100}   # todo token sano cuenta
-    for k, v in cfg_over.items():
-        cfg["alerts"][k] = v
-    stub = Stub(cfg)
-    return stub, AlertService(stub, cfg, clock=lambda: 100.0)
+STRONG = dict(liq=60000, vol_h1=30000, buys_h1=300, sells_h1=100, mcap=40000, age_min=15)
+
+
+def make():
+    stub = Stub()
+    return stub, AlertService(stub, CFG, clock=lambda: 100.0)
 
 
 def test_first_scan_is_baseline_only():
     stub, al = make()
-    stub.data[Stage.NEW] = [tok(address="A", smart_money_buyers=2, age_min=2)]
+    stub.pairs = [pair("A", **STRONG)]
     assert al.events()["events"] == []
 
 
 def test_quadrant_entry_fires_once():
     stub, al = make()
     al.events()
-    stub.data[Stage.NEW] = [tok(address="A")]
+    stub.pairs = [pair("A", **STRONG)]
     evs = al.events(after=0)["events"]
-    assert [e["type"] for e in evs] == ["quadrant"] and evs[0]["address"] == "A"
-    assert al.events(after=0)["events"] == evs          # no se repite
+    assert [e["type"] for e in evs] == ["quadrant"] and evs[0]["address"] == "A" and "alto potencial" in evs[0]["message"]
+    assert al.events(after=0)["events"] == evs
 
 
-def test_smart_money_respects_configurable_age():
+def test_weak_and_rejected_tokens_never_alert():
     stub, al = make()
     al.events()
-    stub.data[Stage.NEW] = [tok(address="OLD", smart_money_buyers=2, age_min=30), tok(address="NEW", smart_money_buyers=2, age_min=3)]
-    sm = [e for e in al.events(after=0)["events"] if e["type"] == "smart_money"]
-    assert [e["address"] for e in sm] == ["NEW"]
-    stub2, al2 = make(smart_money={"enabled": True, "max_age_min": 60, "min_buyers": 1})
-    al2.events()
-    stub2.data[Stage.NEW] = [tok(address="OLD", smart_money_buyers=2, age_min=30)]
-    assert [e["type"] for e in al2.events(after=0)["events"] if e["type"] == "smart_money"] == ["smart_money"]
-
-
-def test_rejected_tokens_never_alert():
-    stub, al = make()
-    al.events()
-    stub.data[Stage.NEW] = [tok(address="H", is_honeypot=True, smart_money_buyers=3, age_min=1)]
+    stub.pairs = [pair("W", liq=5000, vol_h1=100, buys_h1=20, sells_h1=40, mcap=900000, age_min=100), pair("R", **dict(STRONG, liq=100))]
     assert al.events(after=0)["events"] == []
 
 
-def test_after_filters_and_disabled_flags():
-    stub, al = make(quadrant_entry=False, smart_money={"enabled": False, "max_age_min": 10, "min_buyers": 1})
-    al.events()
-    stub.data[Stage.NEW] = [tok(address="A", smart_money_buyers=2, age_min=1)]
-    assert al.events(after=0)["events"] == []
+def test_after_filters_and_sound_config_exposed():
     stub, al = make()
     al.events()
-    stub.data[Stage.NEW] = [tok(address="A")]
-    last = al.events()["last_id"]
-    assert al.events(after=last)["events"] == []
-
-
-def test_config_exposes_sound():
-    _, al = make()
-    c = al.events()["config"]
-    assert c["smart_money_max_age_min"] == 10 and len(c["sound"]["quadrant"]) == 2
-
-
-def test_smart_money_message_for_brand_new_token():
-    stub, al = make()
-    al.events()
-    stub.data[Stage.NEW] = [tok(address="A", smart_money_buyers=1, age_min=0.4)]
-    msg = [e["message"] for e in al.events(after=0)["events"] if e["type"] == "smart_money"][0]
-    assert "menos de 1 min" in msg and "0 min" not in msg
+    stub.pairs = [pair("A", **STRONG)]
+    d = al.events()
+    assert al.events(after=d["last_id"])["events"] == [] and len(d["config"]["sound"]["quadrant"]) == 2

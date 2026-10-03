@@ -28,10 +28,10 @@ export function HeroField({ items, meta }: { items: RadarItem[]; meta?: RadarRes
     const target = () => {
       const t = new Float32Array(cols * rows);
       const list = itemsRef.current.filter((i) => i.entry.verdict !== "rejected");
-      const maxVol = Math.max(1, ...list.map((i) => i.entry.token.volume));
+      const maxVol = Math.max(1, ...list.map((i) => i.entry.token.volume.h1));
       for (const it of list) {
         const cx = 2 + (it.risk.score / 100) * (cols - 4), cy = 1 + (1 - it.potential.score / 100) * (rows - 2);
-        const w = 0.35 + 0.65 * Math.sqrt(it.entry.token.volume / maxVol), sig = 3.2;
+        const w = 0.35 + 0.65 * Math.sqrt(it.entry.token.volume.h1 / maxVol), sig = 3.2;
         for (let y = Math.max(0, Math.floor(cy - 9)); y < Math.min(rows, cy + 9); y++)
           for (let x = Math.max(0, Math.floor(cx - 14)); x < Math.min(cols, cx + 14); x++) {
             const dx = (x - cx) / 2, dy = y - cy; // las celdas son más altas que anchas: compensa

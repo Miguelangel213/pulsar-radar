@@ -1,68 +1,85 @@
 from radar.config import load_config
-from radar.gates import build_entry
-from radar.scoring import ramp, score_entry, trending_shares
-from tests.test_gates import tok
+from scoring.gates import build_entry
+from scoring.scoring_engine import ramp, score_entry
+from services.token_scanner import normalize_pair
+from tests.helpers import NOW, pair
 
 CFG = load_config()
 
 
 def sc(**kw):
-    return score_entry(build_entry(tok(**kw), CFG), CFG, {})
+    t = normalize_pair(pair(**kw), NOW * 1000)
+    return score_entry(build_entry(t, CFG), CFG)
 
 
 def test_ramp():
     assert ramp(0, [0, 10]) == 0 and ramp(5, [0, 10]) == 50 and ramp(99, [0, 10]) == 100 and ramp(None, [0, 1]) is None
 
 
-def test_risk_levels_and_subscores_visible():
-    good = sc(top10_rate=0.15, bundler_rate=0.02, sniper_rate=0.02, liquidity=20000, market_cap=60000, holders=600, age_min=90)
-    bad = sc(mint_renounced=False, freeze_renounced=False, top10_rate=0.7, bundler_rate=0.45, sniper_rate=0.4,
-             dev_hold_rate=0.3, liquidity=500, holders=20, age_min=1, dev_sold=True, rug_ratio=0.45)
-    assert good.risk.level == "Sólido" and bad.risk.level in ("Alto", "Extremo")
-    assert set(good.risk.subscores) == {"contract", "liquidity", "holders", "dev", "age"}
-    assert bad.risk.score > good.risk.score and 1 <= len(bad.risk.reasons) <= 3
+def test_potential_uses_the_five_requested_signals():
+    assert set(sc().potential.subscores) == {"liquidity", "volume", "market_cap", "age", "buy_sell"}
 
 
-def test_failed_gates_lead_reasons():
-    s = sc(sell_tax_pct=40)
-    assert s.risk.reasons[0].startswith("Gate sell_tax")
+def test_more_liquidity_volume_buys_means_more_potential():
+    weak = sc(liq=3000, vol_h1=300, buys_h1=30, sells_h1=45, buys_m5=3, sells_m5=6, mcap=900_000, age_min=900)
+    strong = sc(liq=60000, vol_h1=30000, buys_h1=300, sells_h1=100, mcap=40000, age_min=15)
+    assert strong.potential.score > weak.potential.score + 30
 
 
-def test_potential_separate_from_risk_and_rewards_smart_money():
-    base = sc(smart_money_buyers=0, kol_buyers=0)
-    smart = sc(smart_money_buyers=5, kol_buyers=3, smart_money_first_entry_min=1)
-    assert smart.potential.score > base.potential.score
-    assert smart.risk.score == base.risk.score
-    assert set(smart.potential.subscores) == {"velocity", "buyers", "pressure", "dev", "narrative"}
+def test_small_cap_and_young_pair_have_more_room():
+    assert sc(mcap=20_000).potential.subscores["market_cap"] > sc(mcap=3_000_000).potential.subscores["market_cap"]
+    assert sc(age_min=10).potential.subscores["age"] > sc(age_min=1000).potential.subscores["age"]
 
 
-def test_dev_rugs_zero_dev_potential():
-    assert sc(dev_rug_count=3).potential.subscores["dev"] == 0
+def test_risk_rises_with_low_liquidity_sell_pressure_and_dump():
+    safe = sc(liq=60000, mcap=100000, age_min=400, buys_h1=200, sells_h1=100, chg_h1=5)
+    bad = sc(liq=3500, mcap=400000, age_min=3, buys_h1=60, sells_h1=140, buys_m5=2, sells_m5=9, chg_h1=-45)
+    assert bad.risk.score > safe.risk.score + 25 and bad.risk.level in ("Alto", "Extremo")
+    assert set(safe.risk.subscores) == {"liquidity", "age", "sell_pressure", "drop", "contract"}
 
 
-def test_narrative_uses_trending():
-    e = build_entry(tok(narrative_tags=["ai"]), CFG)
-    hot = score_entry(e, CFG, {"ai": 0.5}); cold = score_entry(e, CFG, {})
-    assert hot.potential.subscores["narrative"] == 100 and cold.potential.subscores["narrative"] == 0
+def test_contract_security_is_always_reported_as_unavailable():
+    r = sc().risk
+    assert "contract" in r.unavailable and r.subscores["contract"] == CFG["scoring"]["risk"]["contract_unavailable"]
 
 
-def test_rejected_ranks_zero_and_never_quadrant():
-    s = sc(is_honeypot=True, smart_money_buyers=5)
-    assert s.adjusted == 0 and not s.quadrant
+def test_unknown_liquidity_uses_neutral_and_is_flagged():
+    s = sc(dex="pumpfun", liq=None)
+    assert "liquidity" in s.potential.unavailable and s.potential.subscores["liquidity"] == 50
+    assert "liquidity" in s.risk.unavailable
+
+
+def test_tiny_sample_does_not_fake_buy_sell_signal():
+    s = sc(buys_h1=3, sells_h1=0, buys_m5=1, sells_m5=0)
+    assert "buy_sell" in s.potential.unavailable
+
+
+def test_gate_reject_zeroes_ranking_and_blocks_quadrant():
+    s = sc(liq=500)
+    assert s.entry.verdict == "rejected" and s.adjusted == 0 and not s.quadrant
+    assert s.risk.reasons[0].startswith("Gate min_liquidity")
+
+
+def test_red_flags_do_not_reject():
+    s = sc(chg_h1=-80)
+    assert s.entry.verdict == "red_flags" and "dump_h1" in s.entry.failed and s.adjusted > 0
 
 
 def test_adjusted_penalizes_risk():
-    safe = sc(top10_rate=0.15, bundler_rate=0.02, sniper_rate=0.02)
-    risky = sc(top10_rate=0.6, bundler_rate=0.4, sniper_rate=0.35, mint_renounced=False)
-    assert safe.adjusted > risky.adjusted
+    a, b = sc(liq=60000, mcap=100000, age_min=400), sc(liq=3500, mcap=400000, age_min=3, buys_h1=60, sells_h1=140, chg_h1=-45)
+    assert a.adjusted > b.adjusted
 
 
-def test_weights_from_config():
-    cfg = load_config(); cfg["scoring"]["potential"]["weights"] = {"velocity": 0, "buyers": 1, "pressure": 0, "dev": 0, "narrative": 0}
-    e = build_entry(tok(smart_money_buyers=5, kol_buyers=3, smart_money_first_entry_min=1), cfg)
-    s = score_entry(e, cfg, {})
-    assert s.potential.score == s.potential.subscores["buyers"]
+def test_weights_and_thresholds_come_from_config():
+    import copy
+    cfg = copy.deepcopy(CFG)
+    cfg["scoring"]["potential"]["weights"] = {"liquidity": 1, "volume": 0, "market_cap": 0, "age": 0, "buy_sell": 0}
+    s = score_entry(build_entry(normalize_pair(pair(), NOW * 1000), cfg), cfg)
+    assert s.potential.score == s.potential.subscores["liquidity"]
+    cfg["gates"]["min_liquidity"]["min_usd"] = 99999
+    assert build_entry(normalize_pair(pair(liq=30000), NOW * 1000), cfg).verdict == "rejected"
 
 
-def test_disclaimer_present():
-    assert "no es una predicción" in sc().potential.note.lower()
+def test_disclaimer_mentions_no_prediction_and_missing_data():
+    n = sc().potential.note.lower()
+    assert "no es una predicción" in n and "smart money" in n

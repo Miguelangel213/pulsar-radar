@@ -21,10 +21,10 @@ export function ScatterMap({ items, meta, onSelect, selected }: { items: RadarIt
   const iw = w - PAD.l - PAD.r, ih = h - PAD.t - PAD.b;
   const x = (risk: number) => PAD.l + (risk / 100) * iw;
   const y = (pot: number) => PAD.t + (1 - pot / 100) * ih;
-  const maxVol = Math.max(1, ...items.map((i) => i.entry.token.volume));
+  const maxVol = Math.max(1, ...items.map((i) => i.entry.token.volume.h1));
   const rad = (v: number) => 4 + Math.sqrt(v / maxVol) * 16;
   const q = meta.quadrant;
-  const sorted = [...items].sort((a, b) => b.entry.token.volume - a.entry.token.volume); // los grandes atrás
+  const sorted = [...items].sort((a, b) => b.entry.token.volume.h1 - a.entry.token.volume.h1); // los grandes atrás
 
   return (
     <div ref={wrap} className="relative px-4 sm:px-6 py-5 pb-14">
@@ -44,7 +44,7 @@ export function ScatterMap({ items, meta, onSelect, selected }: { items: RadarIt
         {sorted.map((it) => {
           const t = it.entry.token, c = COLOR[riskKey(it.risk.level)], sel = selected === t.address;
           return (
-            <circle key={t.address} cx={x(it.risk.score)} cy={y(it.potential.score)} r={rad(t.volume)} fill={c} fillOpacity={sel ? 0.9 : 0.35} stroke={sel ? "#fff" : c}
+            <circle key={t.address} cx={x(it.risk.score)} cy={y(it.potential.score)} r={rad(t.volume.h1)} fill={c} fillOpacity={sel ? 0.9 : 0.35} stroke={sel ? "#fff" : c}
               strokeWidth={sel ? 2 : 1} tabIndex={0} role="button" aria-label={`${t.symbol}, potencial ${it.potential.score.toFixed(0)}, riesgo ${it.risk.score.toFixed(0)}`}
               className="cursor-pointer outline-none focus-visible:stroke-white" style={{ transition: "cx .6s, cy .6s, r .6s" }}
               onClick={() => onSelect(it)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(it); } }}
@@ -57,12 +57,12 @@ export function ScatterMap({ items, meta, onSelect, selected }: { items: RadarIt
           style={{ left: Math.min(Math.max(x(hover.risk.score) + 28, 8), w - 190), top: Math.max(y(hover.potential.score) - 6, 8) }}>
           <div className="font-medium">{hover.entry.token.symbol} <span className="text-dim font-normal">{hover.entry.token.name}</span></div>
           <div className="num text-dim mt-1">Pot. {hover.potential.score.toFixed(0)} · Riesgo {hover.risk.score.toFixed(0)} ({hover.risk.level})</div>
-          <div className="num text-dim">Vol. {usd(hover.entry.token.volume)}</div>
+          <div className="num text-dim">Vol. 1h {usd(hover.entry.token.volume.h1)}</div>
         </div>
       )}
       <div className="flex flex-wrap gap-x-5 gap-y-1 mt-3 text-[12px] text-dim">
         {(["Sólido", "Moderado", "Alto", "Extremo"] as const).map((l) => <span key={l} className="flex items-center gap-1.5"><span className="size-2.5 rounded-full" style={{ background: COLOR[riskKey(l)] }} />{l}</span>)}
-        <span>Tamaño del punto = volumen</span>
+        <span>Tamaño del punto = volumen en 1 h</span>
       </div>
     </div>
   );

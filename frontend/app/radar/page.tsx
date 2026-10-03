@@ -24,8 +24,6 @@ export default function RadarPage() {
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [sort, setSort] = useState<SortKey>("adjusted");
   const { data, error, loading, updatedAt } = useRadar(stage, filters, sort, undefined);
-  const [mode, setMode] = useState<"MOCK" | "REAL" | undefined>();
-  useEffect(() => { if (data?.mode) setMode(data.mode); }, [data?.mode]);
   const [view, setView] = useState<"table" | "map">("table");
   const [sel, setSel] = useState<RadarItem | null>(null);
   // el panel sigue al token seleccionado aunque se actualicen los datos (o salga de la lista)
@@ -47,9 +45,9 @@ export default function RadarPage() {
 
   return (
     <div className="min-h-dvh flex flex-col">
-      <ModeBanner mode={mode} />
-      <TopBar mode={mode}>
-        <AlertBell history={alerts.history} unread={alerts.unread} muted={muted} maxAge={alerts.config?.smart_money_max_age_min} onToggleMute={toggleMute}
+      <ModeBanner ready={!!data || !!updatedAt} />
+      <TopBar ready={!!data || !!updatedAt}>
+        <AlertBell history={alerts.history} unread={alerts.unread} muted={muted} onToggleMute={toggleMute}
           onOpenPanel={alerts.markRead} onSelect={openFromAlert} onTest={alerts.test} />
       </TopBar>
       <Hero items={data?.items ?? []} meta={data?.meta} />
@@ -58,14 +56,14 @@ export default function RadarPage() {
       {error && <ErrorState message={error} hasData={!!data} />}
       <main className="flex-1">
         {loading && !data ? <LoadingRows />
-          : data && data.items.length === 0 ? <EmptyState filtered={filtered} />
+          : data && data.items.length === 0 ? <EmptyState filtered={filtered} stage={stage} />
           : data ? (view === "map"
             ? <ScatterMap items={data.items} meta={data.meta} onSelect={setSel} selected={shown?.entry.token.address} />
             : <RadarTable items={data.items} sort={sort} onSort={setSort} onSelect={setSel} selected={shown?.entry.token.address} />) : null}
       </main>
-      {shown && data && <DetailPanel key={shown.entry.token.address} item={shown} meta={data.meta} mode={mode} onClose={() => setSel(null)} />}
+      {shown && data && <DetailPanel key={shown.entry.token.address} item={shown} onClose={() => setSel(null)} />}
       <AlertToasts toasts={alerts.toasts} onClose={alerts.dismiss} onOpen={openFromAlert} />
-      <StatusBar mode={mode} updatedAt={updatedAt} error={!!error} count={data?.count ?? null} quadrant={data?.items.filter((i) => i.quadrant).length ?? 0} />
+      <StatusBar updatedAt={updatedAt} error={!!error} count={data?.count ?? null} quadrant={data?.items.filter((i) => i.quadrant).length ?? 0} />
     </div>
   );
 }

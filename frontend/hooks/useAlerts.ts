@@ -5,7 +5,7 @@ import { audioReady, playTones } from "@/lib/sound";
 import type { AlertEvent, AlertsResponse } from "@/lib/types";
 
 const POLL_MS = 5000;
-const FALLBACK_SOUND = { quadrant: [660, 990], smart_money: [880, 1320], volume: 0.12 };
+const FALLBACK_SOUND = { quadrant: [660, 990], volume: 0.12 };
 
 export function useAlerts(muted: boolean) {
   const [history, setHistory] = useState<AlertEvent[]>([]);
@@ -25,7 +25,7 @@ export function useAlerts(muted: boolean) {
     if (!mutedRef.current && audioReady()) {
       const snd = cfgRef.current?.sound ?? FALLBACK_SOUND;
       const e = evs[evs.length - 1];
-      playTones(e.type === "smart_money" ? snd.smart_money : snd.quadrant, snd.volume);
+      playTones(snd.quadrant, snd.volume);
     }
   }, []);
 
@@ -51,11 +51,9 @@ export function useAlerts(muted: boolean) {
 
   const dismiss = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
   const markRead = useCallback(() => setUnread(0), []);
-  const test = useCallback((type: "quadrant" | "smart_money") => {
+  const test = useCallback(() => {
     push([{ id: -Date.now(), type: "test", ts: Date.now() / 1000, address: "", symbol: "PRUEBA", stage: "new_creation", potential: 0, risk: 0, age_min: 0,
-      message: type === "quadrant" ? "Así suena y se ve una entrada a alto potencial, bajo riesgo" : "Así suena y se ve una entrada de smart money" }]);
-    const snd = cfgRef.current?.sound ?? FALLBACK_SOUND;
-    if (!mutedRef.current && audioReady()) playTones(type === "smart_money" ? snd.smart_money : snd.quadrant, snd.volume);
+      message: "Así suena y se ve una entrada a alto potencial, bajo riesgo" }]);
   }, [push]);
 
   return { history, toasts, unread, config, dismiss, markRead, test };

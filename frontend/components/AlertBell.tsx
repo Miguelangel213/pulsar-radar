@@ -8,9 +8,9 @@ function ago(ts: number): string {
   return s < 60 ? `hace ${s}s` : s < 3600 ? `hace ${Math.floor(s / 60)}m` : `hace ${Math.floor(s / 3600)}h`;
 }
 
-export function AlertBell({ history, unread, muted, maxAge, onToggleMute, onOpenPanel, onSelect, onTest }: {
-  history: AlertEvent[]; unread: number; muted: boolean; maxAge?: number; onToggleMute: () => void; onOpenPanel: () => void;
-  onSelect: (e: AlertEvent) => void; onTest: (t: "quadrant" | "smart_money") => void;
+export function AlertBell({ history, unread, muted, onToggleMute, onOpenPanel, onSelect, onTest }: {
+  history: AlertEvent[]; unread: number; muted: boolean; onToggleMute: () => void; onOpenPanel: () => void;
+  onSelect: (e: AlertEvent) => void; onTest: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -41,11 +41,11 @@ export function AlertBell({ history, unread, muted, maxAge, onToggleMute, onOpen
             </button>
           </div>
           <ul className="max-h-[320px] overflow-y-auto divide-y divide-line">
-            {history.length === 0 && <li className="px-4 py-8 text-center text-[13px] text-dim">Aún no hay alertas. Te avisaré cuando un token entre a alto potencial, bajo riesgo o entre smart money{maxAge ? ` en tokens de menos de ${maxAge} min` : ""}.</li>}
+            {history.length === 0 && <li className="px-4 py-8 text-center text-[13px] text-dim">Aún no hay alertas. Te avisaré cuando un token entre a alto potencial, bajo riesgo.</li>}
             {history.map((e) => (
               <li key={e.id}>
                 <button onClick={() => { if (e.address) { onSelect(e); setOpen(false); } }} disabled={!e.address} className="w-full text-left px-4 py-2.5 hover:bg-raise disabled:cursor-default">
-                  <div className="flex items-center justify-between text-[11px] text-dim"><span>{e.type === "quadrant" ? "Cuadrante" : e.type === "smart_money" ? "Smart money" : "Prueba"}</span><span className="num">{ago(e.ts)}</span></div>
+                  <div className="flex items-center justify-between text-[11px] text-dim"><span>{e.type === "quadrant" ? "Cuadrante" : "Prueba"}</span><span className="num">{ago(e.ts)}</span></div>
                   <div className="text-[13px] mt-0.5 leading-snug">{e.message}</div>
                 </button>
               </li>
@@ -53,8 +53,7 @@ export function AlertBell({ history, unread, muted, maxAge, onToggleMute, onOpen
           </ul>
           <div className="px-4 py-3 border-t border-line flex flex-wrap items-center gap-2 text-[12px]">
             <span className="text-dim">Probar:</span>
-            <button onClick={() => onTest("quadrant")} className="border border-line hover:border-solid px-2 py-1">cuadrante</button>
-            <button onClick={() => onTest("smart_money")} className="border border-line hover:border-flame px-2 py-1">smart money</button>
+            <button onClick={onTest} className="border border-line hover:border-solid px-2 py-1">alerta de cuadrante</button>
             {!audioReady() && <p className="basis-full text-faint text-[11px]">El navegador activa el sonido tras tu primer clic en la página.</p>}
           </div>
         </div>
