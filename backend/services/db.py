@@ -51,7 +51,7 @@ class SqliteStore:
                     (t.address, t.pair_address, t.symbol, t.name, t.dex_id, t.market_cap, t.liquidity_usd, t.volume.h24, t.fdv, t.price_usd,
                      t.pair_created_at, int(t.buys.h24), int(t.sells.h24), json.dumps([s.model_dump() for s in t.socials]), t.website,
                      t.boosts_active, e.potential.score, e.risk.score, e.risk.level, meta.get("first_seen", ts), meta.get("last_seen", ts), ts))
-                if ts - self._last.get(t.address, 0) >= self.interval:
+                if ts - self._last.get(t.address, 0) >= self.interval - 2:
                     self.conn.execute(
                         "INSERT INTO history (ts, token_address, pair_address, price_usd, market_cap, liquidity_usd, volume_24h, fdv, buys_24h, sells_24h, potential, risk) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                         (ts, t.address, t.pair_address, t.price_usd, t.market_cap, t.liquidity_usd, t.volume.h24, t.fdv, int(t.buys.h24), int(t.sells.h24), e.potential.score, e.risk.score))

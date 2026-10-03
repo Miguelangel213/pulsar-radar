@@ -46,7 +46,7 @@ class JsonStore:
         _atomic_write(self.tokens_path, {"updated_at": ts, "tracked": tracked, "tokens": tokens})
 
     def append_history(self, ts: float, rows: List[Dict[str, Any]]) -> int:
-        new = [dict(r, ts=ts) for r in rows if ts - self._last_row.get(r["address"], 0) >= self.interval]
+        new = [dict(r, ts=ts) for r in rows if ts - self._last_row.get(r["address"], 0) >= self.interval - 2]
         if not new:
             return 0
         for r in new:

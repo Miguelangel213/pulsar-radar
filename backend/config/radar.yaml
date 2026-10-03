@@ -30,7 +30,8 @@ links:                              # se generan solas con la dirección del con
 
 scanner:
   db_path: "data/radar.db"          # SQLite local (tokens + histórico)
-  scan_interval_s: 15               # mínimo entre escaneos completos (las peticiones del front reutilizan el último)
+  background: true                  # hilo de fondo: escanea y guarda el histórico aunque no haya navegador abierto
+  scan_interval_s: 15               # cada cuánto escanea el hilo de fondo; las peticiones del front reutilizan el último resultado
   batch_size: 30                    # direcciones por llamada a /tokens/v1 (máximo de DexScreener)
   search_queries: []                # búsquedas extra para descubrir tokens, p. ej. ["pump"]. Vacío = solo boosts y perfiles
   max_tracked: 150                  # tokens seguidos a la vez

@@ -62,6 +62,11 @@ class AlertService:
         self._in_quadrant = now_quadrant
         self._baseline_done = True
 
+    def tick(self) -> None:
+        """Evalúa alertas sin que nadie consulte (lo usa el hilo de fondo)."""
+        with self._lock:
+            self.scan()
+
     def events(self, after: Optional[int] = None) -> Dict[str, Any]:
         with self._lock:
             self.scan()

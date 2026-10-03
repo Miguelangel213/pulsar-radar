@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query
@@ -10,6 +11,7 @@ from clients.dexscreener_client import DexScreenerClient, DexScreenerError
 from radar.config import load_config
 from radar.models import Stage
 from services.alerts import AlertService
+from services.background import BackgroundScanner
 from services.radar_service import SORT_KEYS, RadarService
 from services.token_scanner import TokenScanner, best_pair_per_token, normalize_pair, classify
 from scoring.gates import build_entry
@@ -27,13 +29,28 @@ def create_app(service: Optional[RadarService] = None, client: Optional[DexScree
         service = RadarService(TokenScanner(client, cfg), cfg)
     client = client or service.scanner.client
     alerts = AlertService(service, service.cfg)
-    app = FastAPI(title="Radar de Memecoins", description="Solo lectura. Datos de DexScreener. Sin órdenes de compra/venta.")
+    sc_cfg = service.cfg["scanner"]
+
+    def tick() -> None:
+        service.scanner.scan(force=True)     # descubre, puntúa y guarda en SQLite/JSON
+        alerts.tick()                        # evalúa alertas con ese resultado
+
+    bg = BackgroundScanner(tick, sc_cfg["scan_interval_s"])
+
+    @asynccontextmanager
+    async def lifespan(_app):
+        if sc_cfg.get("background", True):
+            bg.start()
+        yield
+        bg.stop()
+
+    app = FastAPI(title="Radar de Memecoins", description="Solo lectura. Datos de DexScreener. Sin órdenes de compra/venta.", lifespan=lifespan)
     app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"], allow_methods=["GET"], allow_headers=["*"])
 
     @app.get("/health")
     def health():
         sc = service.scanner
-        return {"ok": True, "source": SOURCE, "tracked": len(sc.tracked), "last_scan": sc.last_scan, "last_error": sc.last_error, "api_calls": client.calls, "db": sc.db.counts() if sc.db else None}
+        return {"ok": True, "source": SOURCE, "tracked": len(sc.tracked), "last_scan": sc.last_scan, "last_error": sc.last_error, "api_calls": client.calls, "db": sc.db.counts() if sc.db else None, "background": bg.status()}
 
     @app.get("/radar")
     def radar(stage: Stage = Stage.NEW,
