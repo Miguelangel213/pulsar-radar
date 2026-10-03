@@ -1,6 +1,7 @@
 import json
 
 from radar.config import load_config
+from services.db import SqliteStore
 from services.store import JsonStore
 from services.token_scanner import TokenScanner, best_pair_per_token, classify, normalize_pair
 from tests.helpers import NOW, FakeClient, pair
@@ -116,3 +117,44 @@ def test_max_tracked_cap(tmp_path):
     sc, _ = scanner(tmp_path, client)
     sc.scan()
     assert len(sc.tracked) == CFG["scanner"]["max_tracked"]
+
+
+def test_links_are_generated_from_addresses():
+    t = normalize_pair(pair(addr="MINT123", symbol="AAA"), NOW * 1000, CFG["links"])
+    assert t.links["dexscreener"] == "https://dexscreener.com/solana/pairMINT123"
+    assert t.links["solscan"] == "https://solscan.io/token/MINT123"
+    assert t.links["birdeye"] == "https://birdeye.so/token/MINT123?chain=solana"
+    assert t.links["dexscreener_chart"].startswith("https://dexscreener.com/solana/pairMINT123?")
+
+
+def test_scan_fills_links_on_every_token(tmp_path):
+    client = FakeClient(pairs=[pair("A"), pair("B")], boosts_latest=["A", "B"])
+    sc, _ = scanner(tmp_path, client)
+    assert all(set(e.entry.token.links) == {"dexscreener", "dexscreener_chart", "solscan", "birdeye"} for e in sc.scan())
+
+
+def test_sqlite_stores_required_fields_and_history(tmp_path):
+    t = {"now": NOW}
+    db = SqliteStore(tmp_path / "radar.db", history_interval_s=60)
+    client = FakeClient(pairs=[pair("A", symbol="AAA", boosts=2)], boosts_latest=["A"])
+    sc = TokenScanner(client, CFG, JsonStore(tmp_path, 60, 100), lambda: t["now"], db=db)
+    sc.scan()
+    row = db.get_token("A")
+    assert (row["token_address"], row["pair_address"], row["symbol"], row["name"]) == ("A", "pairA", "AAA", "AAA coin")
+    assert row["market_cap"] == 50000 and row["liquidity_usd"] == 30000 and row["fdv"] == 50000
+    assert row["volume_24h"] == 160000 and row["buys_24h"] == 1200 and row["sells_24h"] == 600
+    assert row["website"] == "https://site.example" and row["socials"][0]["type"] == "twitter" and row["pair_created_at"]
+    t["now"] += 20; sc.scan(force=True)
+    assert len(db.history("A")) == 1                       # throttle de histórico
+    t["now"] += 60; sc.scan(force=True)
+    h = db.history("A")
+    assert len(h) == 2 and h[0]["ts"] < h[1]["ts"] and h[0]["price_usd"] == 0.00005
+    assert db.counts() == {"tokens": 1, "history": 2}
+
+
+def test_sqlite_persists_across_restart(tmp_path):
+    db = SqliteStore(tmp_path / "radar.db", 60)
+    sc = TokenScanner(FakeClient(pairs=[pair("A")], boosts_latest=["A"]), CFG, JsonStore(tmp_path, 60, 100), lambda: NOW, db=db)
+    sc.scan()
+    db2 = SqliteStore(tmp_path / "radar.db", 60)
+    assert db2.get_token("A")["symbol"] == "AAA" and len(db2.history("A")) == 1

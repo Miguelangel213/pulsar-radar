@@ -2,6 +2,7 @@
 import { useEffect, useRef } from "react";
 import { DEX_LABEL, age, pct, price, riskKey, usd } from "@/lib/format";
 import type { RadarItem, Win } from "@/lib/types";
+import { QuickLinks } from "./QuickLinks";
 import { RiskBadge } from "./RiskBadge";
 
 const RISK_LABEL: Record<string, string> = { liquidity: "Liquidez", age: "Edad del par", sell_pressure: "Presión de venta", drop: "Caída de precio 1 h", contract: "Seguridad del contrato" };
@@ -32,11 +33,13 @@ export function DetailPanel({ item, onClose }: { item: RadarItem; onClose: () =>
 
   const rank = (s: string) => (s === "fail" ? 0 : s === "unknown" ? 1 : 2);
   const gates = [...item.entry.gates].sort((a, b) => rank(a.status) - rank(b.status));
-  const links = [
-    { label: "DexScreener", href: t.url },
-    ...(t.website ? [{ label: "Sitio web", href: t.website }] : []),
-    ...t.socials.map((s) => ({ label: s.type === "twitter" ? "X / Twitter" : s.type === "telegram" ? "Telegram" : s.type, href: s.url })),
+  const SOCIAL: Record<string, string> = { twitter: "X / Twitter", telegram: "Telegram", discord: "Discord" };
+  const key: [string, string][] = [
+    ["Market cap", usd(t.market_cap)], ["Liquidez", t.liquidity_usd === null ? "curva (sin dato)" : usd(t.liquidity_usd)],
+    ["Volumen 24h", usd(t.volume.h24)], ["FDV", usd(t.fdv)], ["Edad del par", age(t.age_min)], ["Precio", price(t.price_usd)],
+    ["Compras 24h", String(t.buys.h24)], ["Ventas 24h", String(t.sells.h24)],
   ];
+  const copyCa = () => { void navigator.clipboard?.writeText(t.address); };
 
   return (
     <>
@@ -52,9 +55,22 @@ export function DetailPanel({ item, onClose }: { item: RadarItem; onClose: () =>
         </div>
 
         <div className="px-5 py-5 space-y-7">
-          <div className="flex flex-wrap gap-2">
-            {links.map((l) => <a key={l.href} href={l.href} target="_blank" rel="noopener noreferrer" className="text-[12px] border border-flame/50 text-flame hover:bg-flame hover:text-black transition-colors px-3 py-1.5">{l.label}</a>)}
-          </div>
+          <section className="space-y-3">
+            <div className="border border-line bg-raise px-3 py-2">
+              <div className="text-[11px] text-dim mb-1">Contract address</div>
+              <button onClick={copyCa} title="Clic para copiar" className="num text-[12px] text-ink break-all text-left hover:text-flame">{t.address}</button>
+            </div>
+            <QuickLinks token={t} />
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-[13px]">
+              {key.map(([k, v]) => <div key={k} className="flex justify-between gap-2 border-b border-line pb-1.5"><span className="text-dim">{k}</span><span className="num text-right">{v}</span></div>)}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-[12px]">
+              <span className="text-dim">Web y redes:</span>
+              {!t.website && t.socials.length === 0 && <span className="text-faint">DexScreener no tiene sitio web ni redes para este token</span>}
+              {t.website && <a href={t.website} target="_blank" rel="noopener noreferrer" className="border border-line hover:border-flame px-2.5 py-1">🌐 Sitio web</a>}
+              {t.socials.map((sc) => <a key={sc.url} href={sc.url} target="_blank" rel="noopener noreferrer" className="border border-line hover:border-flame px-2.5 py-1">{SOCIAL[sc.type] ?? sc.type}</a>)}
+            </div>
+          </section>
 
           <div className="grid grid-cols-2 gap-px bg-line border border-line">
             <div className="bg-panel p-4">
@@ -105,14 +121,8 @@ export function DetailPanel({ item, onClose }: { item: RadarItem; onClose: () =>
           </section>
 
           <section>
-            <h3 className="text-[13px] font-medium mb-3">Mercado</h3>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-[13px] mb-4">
-              {([["Precio", price(t.price_usd)], ["Edad del par", age(t.age_min)], ["Market cap", usd(t.market_cap)], ["FDV", usd(t.fdv)],
-                 ["Liquidez", t.liquidity_usd === null ? "curva (sin dato)" : usd(t.liquidity_usd)], ["Mercado", DEX_LABEL[t.dex_id] ?? t.dex_id],
-                 ["Boosts activos", String(t.boosts_active)], ["Descubierto por", t.sources.join(", ") || "—"]] as const).map(([k, v]) => (
-                <div key={k} className="flex justify-between gap-2 border-b border-line pb-1.5"><span className="text-dim">{k}</span><span className="num text-right truncate">{v}</span></div>
-              ))}
-            </div>
+            <h3 className="text-[13px] font-medium mb-3">Actividad por ventana</h3>
+            <p className="text-[12px] text-dim mb-3">Mercado: {DEX_LABEL[t.dex_id] ?? t.dex_id} · boosts activos: <span className="num">{t.boosts_active}</span> · descubierto por: {t.sources.join(", ") || "—"}</p>
             <table className="w-full text-[12px] num">
               <thead><tr className="text-dim text-right"><th className="text-left font-normal pb-1.5"></th>{WINDOWS.map(([, l]) => <th key={l} className="font-normal pb-1.5">{l}</th>)}</tr></thead>
               <tbody className="[&_td]:py-1 [&_td]:text-right [&_tr]:border-t [&_tr]:border-line">

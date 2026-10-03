@@ -3,6 +3,7 @@ import { useLayoutEffect, useRef } from "react";
 import { DEX_LABEL, age, pct, shortAddr, usd } from "@/lib/format";
 import type { RadarItem, SortKey } from "@/lib/types";
 import { RiskBadge } from "./RiskBadge";
+import { QuickLinks } from "./QuickLinks";
 import { ScoreBar } from "./ScoreBar";
 
 interface Col { label: string; sort?: SortKey; align?: "right"; wide?: boolean }
@@ -11,7 +12,7 @@ const COLS: Col[] = [
   { label: "Market cap", sort: "market_cap", align: "right", wide: true }, { label: "Liquidez", sort: "liquidity", align: "right", wide: true },
   { label: "Vol. 1h", sort: "volume", align: "right", wide: true }, { label: "Compras / ventas 1h", sort: "txns", align: "right", wide: true },
   { label: "Cambio 1h", sort: "change", align: "right", wide: true },
-  { label: "Potencial", sort: "potential" }, { label: "Riesgo", sort: "risk" },
+  { label: "Potencial", sort: "potential" }, { label: "Riesgo", sort: "risk" }, { label: "Enlaces", wide: true },
 ];
 
 export function RadarTable({ items, sort, onSort, onSelect, selected }: { items: RadarItem[]; sort: SortKey; onSort: (s: SortKey) => void; onSelect: (i: RadarItem) => void; selected?: string }) {
@@ -37,7 +38,7 @@ export function RadarTable({ items, sort, onSort, onSelect, selected }: { items:
 
   return (
     <div className="overflow-x-auto pb-12">
-      <div role="table" aria-label="Tokens ordenados del mejor al más riesgoso" className="sm:min-w-[1100px]">
+      <div role="table" aria-label="Tokens ordenados del mejor al más riesgoso" className="sm:min-w-[1280px]">
         <div role="row" className="radar-grid sticky top-0 z-10 bg-void border-b border-line px-4 sm:px-6 h-9 text-[12px] text-dim">
           {COLS.map((c) => (
             <div key={c.label} role="columnheader" className={`${c.align === "right" ? "text-right" : ""} ${c.wide ? "max-sm:hidden" : ""}`}>
@@ -70,6 +71,7 @@ export function RadarTable({ items, sort, onSort, onSelect, selected }: { items:
                   {it.quadrant && <span className="text-[10px] text-solid border border-solid/40 px-1 shrink-0">alto potencial, bajo riesgo</span>}
                   {it.entry.verdict === "red_flags" && <span className="text-[10px] text-high border border-high/40 px-1 shrink-0">{it.entry.failed.length} marca{it.entry.failed.length > 1 ? "s" : ""} roja{it.entry.failed.length > 1 ? "s" : ""}</span>}
                 </div>
+                <div className="sm:hidden mt-2"><QuickLinks token={t} compact /></div>
               </div>
               <div role="cell" className="max-sm:hidden num text-[13px] text-right">{age(t.age_min)}</div>
               <div role="cell" className="max-sm:hidden num text-[13px] text-right">{usd(t.market_cap)}</div>
@@ -82,6 +84,7 @@ export function RadarTable({ items, sort, onSort, onSelect, selected }: { items:
               <div role="cell" className={`max-sm:hidden num text-[13px] text-right ${chg === null ? "text-faint" : chg >= 0 ? "text-solid" : "text-extreme"}`}>{pct(chg)}</div>
               <div role="cell"><ScoreBar value={it.potential.score} dim={rejected} /></div>
               <div role="cell"><RiskBadge level={it.risk.level} score={it.risk.score} rejected={rejected} /></div>
+              <div role="cell" className="max-sm:hidden"><QuickLinks token={t} compact /></div>
             </div>
           );
         })}

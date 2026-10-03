@@ -10,6 +10,7 @@ from radar.config import BACKEND_DIR
 from radar.models import PriceChange, Social, Stage, Token, Window
 from scoring.gates import build_entry
 from scoring.scoring_engine import ScoredEntry, score_entry
+from services.db import SqliteStore
 from services.store import JsonStore
 
 
@@ -25,7 +26,11 @@ def _window(d: Optional[Dict[str, Any]]) -> Window:
     return Window(**{k: float(d.get(k) or 0) for k in ("m5", "h1", "h6", "h24")})
 
 
-def normalize_pair(p: Dict[str, Any], now_ms: float) -> Token:
+def build_links(templates: Optional[Dict[str, str]], address: str, pair_address: str) -> Dict[str, str]:
+    return {k: v.format(address=address, pair_address=pair_address) for k, v in (templates or {}).items()}
+
+
+def normalize_pair(p: Dict[str, Any], now_ms: float, link_templates: Optional[Dict[str, str]] = None) -> Token:
     info = p.get("info") or {}
     created = p.get("pairCreatedAt")
     txns = p.get("txns") or {}
@@ -43,6 +48,7 @@ def normalize_pair(p: Dict[str, Any], now_ms: float) -> Token:
         website=(webs[0].get("url") if webs else None),
         socials=[Social(type=s.get("type", "?"), url=s["url"]) for s in (info.get("socials") or []) if s.get("url")],
         boosts_active=int((p.get("boosts") or {}).get("active") or 0),
+        links=build_links(link_templates, p["baseToken"]["address"], p.get("pairAddress", "")),
     )
 
 
@@ -77,11 +83,14 @@ class TokenScanner:
     """Descubre tokens (boosts, perfiles, búsquedas), los detalla en lotes, los puntúa y los guarda en JSON."""
 
     def __init__(self, client: DexScreenerClient, cfg: Dict[str, Any], store: Optional[JsonStore] = None,
-                 clock: Callable[[], float] = time.time):
+                 clock: Callable[[], float] = time.time, db: Optional[SqliteStore] = None):
         self.client, self.cfg, self.clock = client, cfg, clock
         sc = cfg["scanner"]
         data_dir = Path(sc["data_dir"]); data_dir = data_dir if data_dir.is_absolute() else BACKEND_DIR / data_dir
         self.store = store or JsonStore(data_dir, sc["history_interval_s"], sc["history_max_rows"])
+        if db is None and store is None:       # con un store inyectado (tests) no se toca la base real
+            db_path = Path(sc["db_path"]); db = SqliteStore(db_path if db_path.is_absolute() else BACKEND_DIR / db_path, sc["history_interval_s"])
+        self.db = db
         self.tracked: Dict[str, Dict[str, Any]] = self.store.load_tracked()
         self.entries: List[ScoredEntry] = []
         self.last_scan: Optional[float] = None
@@ -141,7 +150,7 @@ class TokenScanner:
                 return self.entries                 # sin respuesta: se conserva el último estado bueno
             entries: List[ScoredEntry] = []
             for addr, pair in best_pair_per_token(pairs, self.client.chain).items():
-                t = normalize_pair(pair, now * 1000)
+                t = normalize_pair(pair, now * 1000, self.cfg["links"])
                 meta = self.tracked.get(addr, {})
                 t.sources, t.first_seen = meta.get("sources", []), meta.get("first_seen")
                 t.stages = classify(t, self.cfg)
@@ -151,6 +160,8 @@ class TokenScanner:
             return self.entries
 
     def _persist(self, now: float) -> None:
+        if self.db:
+            self.db.save_entries(now, self.entries, self.tracked)
         self.store.save_tokens(now, self.tracked, {e.entry.token.address: dict(e.entry.token.model_dump(), potential=e.potential.score, risk=e.risk.score, level=e.risk.level) for e in self.entries})
         self.store.append_history(now, [{"address": e.entry.token.address, "symbol": e.entry.token.symbol, "price_usd": e.entry.token.price_usd,
                                          "market_cap": e.entry.token.market_cap, "liquidity_usd": e.entry.token.liquidity_usd,

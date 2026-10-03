@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -58,6 +58,7 @@ class Token(BaseModel):
     sources: List[str] = []                    # cómo se descubrió: boost_latest, boost_top, profile, search
     stages: List[str] = []                     # etapas a las que pertenece ahora
     first_seen: Optional[float] = None
+    links: Dict[str, str] = {}                 # dexscreener, dexscreener_chart, solscan, birdeye
 
 
 class GateResult(BaseModel):

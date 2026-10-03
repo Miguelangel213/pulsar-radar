@@ -33,7 +33,7 @@ def create_app(service: Optional[RadarService] = None, client: Optional[DexScree
     @app.get("/health")
     def health():
         sc = service.scanner
-        return {"ok": True, "source": SOURCE, "tracked": len(sc.tracked), "last_scan": sc.last_scan, "last_error": sc.last_error, "api_calls": client.calls}
+        return {"ok": True, "source": SOURCE, "tracked": len(sc.tracked), "last_scan": sc.last_scan, "last_error": sc.last_error, "api_calls": client.calls, "db": sc.db.counts() if sc.db else None}
 
     @app.get("/radar")
     def radar(stage: Stage = Stage.NEW,
@@ -68,7 +68,7 @@ def create_app(service: Optional[RadarService] = None, client: Optional[DexScree
         now_ms = time.time() * 1000
         out = []
         for addr, pair in best_pair_per_token(pairs, client.chain).items():
-            t = normalize_pair(pair, now_ms); t.stages = classify(t, service.cfg)
+            t = normalize_pair(pair, now_ms, service.cfg["links"]); t.stages = classify(t, service.cfg)
             out.append(score_entry(build_entry(t, service.cfg), service.cfg).model_dump())
         out.sort(key=lambda x: -x["adjusted"])
         return {"query": q, "count": len(out), "items": out}
@@ -80,6 +80,23 @@ def create_app(service: Optional[RadarService] = None, client: Optional[DexScree
             return {"address": address, "pairs": client.token_pairs(address)}
         except DexScreenerError as e:
             raise HTTPException(502, str(e))
+
+    @app.get("/tokens/{address}")
+    def stored_token(address: str):
+        """Token guardado en la base de datos local (último estado conocido)."""
+        db = service.scanner.db
+        row = db.get_token(address) if db else None
+        if row is None:
+            raise HTTPException(404, "Token no encontrado en la base de datos")
+        return row
+
+    @app.get("/tokens/{address}/history")
+    def token_history(address: str, limit: int = Query(500, ge=1, le=5000)):
+        """Histórico guardado (precio, market cap, liquidez, volumen, scores) de un token."""
+        db = service.scanner.db
+        if db is None:
+            raise HTTPException(404, "Base de datos no disponible")
+        return {"address": address, "rows": db.history(address, limit)}
 
     @app.get("/alerts")
     def get_alerts(after: Optional[int] = Query(None, ge=0, description="devuelve solo eventos con id mayor")):

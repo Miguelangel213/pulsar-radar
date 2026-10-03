@@ -22,7 +22,14 @@ dexscreener:
     profiles: 60
   backoff: { max_retries: 3, base_delay_s: 0.5, factor: 2.0, max_delay_s: 6.0 }
 
+links:                              # se generan solas con la dirección del contrato / del par
+  dexscreener: "https://dexscreener.com/solana/{pair_address}"
+  dexscreener_chart: "https://dexscreener.com/solana/{pair_address}?embed=1&theme=dark&info=0&trades=0"
+  solscan: "https://solscan.io/token/{address}"
+  birdeye: "https://birdeye.so/token/{address}?chain=solana"
+
 scanner:
+  db_path: "data/radar.db"          # SQLite local (tokens + histórico)
   scan_interval_s: 15               # mínimo entre escaneos completos (las peticiones del front reutilizan el último)
   batch_size: 30                    # direcciones por llamada a /tokens/v1 (máximo de DexScreener)
   search_queries: []                # búsquedas extra para descubrir tokens, p. ej. ["pump"]. Vacío = solo boosts y perfiles

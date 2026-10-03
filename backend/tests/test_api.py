@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from api.main import create_app
 from radar.config import load_config
 from services.radar_service import RadarService
+from services.db import SqliteStore
 from services.store import JsonStore
 from services.token_scanner import TokenScanner
 from tests.helpers import NOW, FakeClient, pair
@@ -22,7 +23,7 @@ def client(tmp_path):
                pair("CURVE", "CURVE", dex="pumpfun", liq=None, mcap=12000, age_min=5),
                pair("OLD", "OLD", age_min=3000, dex="raydium")],
         boosts_latest=["GOOD", "MID", "RUG", "CURVE", "OLD"])
-    sc = TokenScanner(fc, CFG, JsonStore(tmp_path, 60, 1000), clock=lambda: NOW)
+    sc = TokenScanner(fc, CFG, JsonStore(tmp_path, 60, 1000), clock=lambda: NOW, db=SqliteStore(tmp_path / 'radar.db', 60))
     app = create_app(RadarService(sc, CFG), client=fc)
     return TestClient(app)
 
@@ -99,3 +100,18 @@ def test_no_gmgn_dependencies_left():
         if f.name == "test_api.py" or "__pycache__" in f.parts:
             continue
         assert "gmgn" not in f.read_text(encoding="utf-8").lower(), f
+
+
+def test_token_links_in_radar_response(client):
+    t = get(client, stage="new_creation")["items"][0]["entry"]["token"]
+    assert t["links"]["solscan"].endswith("/token/" + t["address"]) and t["pair_address"] in t["links"]["dexscreener"]
+
+
+def test_stored_token_and_history_endpoints(client):
+    client.get("/radar")
+    r = client.get("/tokens/GOOD").json()
+    assert r["symbol"] == "GOOD" and r["pair_address"] == "pairGOOD" and r["potential"] > 0
+    h = client.get("/tokens/GOOD/history").json()
+    assert h["rows"] and h["rows"][0]["token_address"] == "GOOD"
+    assert client.get("/tokens/NOPE").status_code == 404
+    assert client.get("/health").json()["db"]["tokens"] == 5

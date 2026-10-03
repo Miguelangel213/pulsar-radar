@@ -12,6 +12,7 @@ export interface Token {
   volume: Win; buys: Win; sells: Win; price_change: PriceChange;
   pair_created_at: number | null; age_min: number | null; website: string | null; socials: Social[];
   boosts_active: number; sources: string[]; stages: StageKey[];
+  links: { dexscreener: string; dexscreener_chart: string; solscan: string; birdeye: string };
 }
 export interface GateResult { name: string; status: "pass" | "fail" | "unknown"; severity: "reject" | "red_flag"; detail: string }
 export interface RadarItem {
