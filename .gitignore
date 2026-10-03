@@ -4,3 +4,5 @@ __pycache__/
 .env
 *.db
 backend/data/*.json
+*.tmp
+backend/data/*.db-journal
