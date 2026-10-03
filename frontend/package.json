@@ -1,10 +1,28 @@
 {
   "name": "radar-frontend",
   "private": true,
-  "scripts": { "dev": "next dev -p 3000", "build": "next build", "start": "next start -p 3000", "typecheck": "tsc --noEmit" },
-  "dependencies": { "next": "^15.1.0", "react": "^19.0.0", "react-dom": "^19.0.0" },
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "gen:config": "node scripts/gen-config.mjs",
+    "build:static": "node scripts/gen-config.mjs && NEXT_PUBLIC_STATIC=1 NEXT_PUBLIC_BASE_PATH=${BASE_PATH:-} next build"
+  },
+  "dependencies": {
+    "next": "^15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.0.0", "@types/node": "^22.0.0", "@types/react": "^19.0.0", "@types/react-dom": "^19.0.0",
-    "tailwindcss": "^4.0.0", "typescript": "^5.6.0"
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^5.0.3",
+    "yaml": "^2.9.1"
   }
 }

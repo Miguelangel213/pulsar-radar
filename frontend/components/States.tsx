@@ -1,3 +1,4 @@
+import { STATIC } from "@/lib/api";
 import type { StageKey } from "@/lib/types";
 
 export function LoadingRows() {
@@ -28,7 +29,7 @@ export function ErrorState({ message, hasData }: { message: string; hasData: boo
   return (
     <div role="alert" className={`${hasData ? "border-b" : "m-6 border"} border-extreme/50 bg-extreme/10 text-[13px] px-4 py-3`}>
       <span className="text-extreme font-medium">{message}.</span>{" "}
-      <span className="text-dim">{hasData ? "Mostrando los últimos datos recibidos; reintenta solo." : "Si el backend está apagado, arráncalo con: python3 -m uvicorn api.main:app --port 8000"}</span>
+      <span className="text-dim">{hasData ? "Mostrando los últimos datos recibidos; reintenta solo." : STATIC ? "Reintenta solo cada pocos segundos. Si persiste, DexScreener puede estar limitando las consultas desde tu red." : "Si el backend está apagado, arráncalo con: python3 -m uvicorn api.main:app --port 8000"}</span>
     </div>
   );
 }

@@ -30,6 +30,18 @@ Solo lectura · datos reales de DexScreener · sin API key · sin servicios de p
 
 </details>
 
+## Demo en el navegador (GitHub Pages)
+
+Además del modo completo (backend + SQLite), el mismo frontend se compila como **sitio estático** que no necesita servidor: el motor (cliente de DexScreener, escáner, gates, score y alertas) corre en el navegador de cada visitante y llama directo a la API pública de DexScreener (que permite CORS). Se ve y funciona igual que en local, con una diferencia: **no guarda histórico** (eso lo hace el backend).
+
+```bash
+cd frontend
+npm run build:static     # genera frontend/out (BASE_PATH=/nombre-del-repo si va en una subruta)
+npm test                 # el motor TypeScript debe dar EXACTAMENTE lo mismo que el Python
+```
+
+El motor TypeScript ([`frontend/lib/engine`](frontend/lib/engine)) es un port del Python y lo verifica un test de paridad: 196 casos (valores límite y aleatorios), una captura real de DexScreener, más de 100 combinaciones de filtros/órdenes y una secuencia de alertas, todos con el resultado esperado calculado por el código Python (`backend/scripts/make_parity_fixtures.py`). Los umbrales se generan desde [`backend/config/radar.yaml`](backend/config/radar.yaml), que sigue siendo la única fuente de verdad.
+
 ## Cómo funciona
 
 ```
@@ -61,7 +73,8 @@ pip install -r backend/requirements.txt
 Abre **http://localhost:3000/radar**. (El puerto 8000 es solo la API: en `/` da 404, es normal; la documentación está en `/docs`.)
 
 ```bash
-cd backend && python3 -m pytest -q     # 56 tests
+cd backend && python3 -m pytest -q     # 56 tests del backend
+cd frontend && npm test                # 16 tests del motor del navegador
 curl localhost:8000/health             # estado, hilo de fondo y filas guardadas
 ```
 

@@ -11,7 +11,7 @@ export interface Token {
   price_usd: number | null; market_cap: number | null; fdv: number | null; liquidity_usd: number | null;
   volume: Win; buys: Win; sells: Win; price_change: PriceChange;
   pair_created_at: number | null; age_min: number | null; website: string | null; socials: Social[];
-  boosts_active: number; sources: string[]; stages: StageKey[];
+  boosts_active: number; sources: string[]; stages: StageKey[]; first_seen: number | null;
   links: { dexscreener: string; dexscreener_chart: string; solscan: string; birdeye: string };
 }
 export interface GateResult { name: string; status: "pass" | "fail" | "unknown"; severity: "reject" | "red_flag"; detail: string }

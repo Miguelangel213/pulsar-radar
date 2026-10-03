@@ -1,0 +1,206 @@
+{
+  "dexscreener": {
+    "base_url": "https://api.dexscreener.com",
+    "chain": "solana",
+    "timeout_s": 10,
+    "rate_limits": {
+      "search": 240,
+      "tokens": 240,
+      "pairs": 240,
+      "boosts": 50,
+      "profiles": 50
+    },
+    "cache_ttl_s": {
+      "search": 20,
+      "tokens": 10,
+      "pairs": 15,
+      "boosts": 60,
+      "profiles": 60
+    },
+    "backoff": {
+      "max_retries": 3,
+      "base_delay_s": 0.5,
+      "factor": 2,
+      "max_delay_s": 6
+    }
+  },
+  "links": {
+    "dexscreener": "https://dexscreener.com/solana/{pair_address}",
+    "dexscreener_chart": "https://dexscreener.com/solana/{pair_address}?embed=1&theme=dark&info=0&trades=0",
+    "solscan": "https://solscan.io/token/{address}",
+    "birdeye": "https://birdeye.so/token/{address}?chain=solana"
+  },
+  "scanner": {
+    "db_path": "data/radar.db",
+    "background": true,
+    "scan_interval_s": 15,
+    "batch_size": 30,
+    "search_queries": [],
+    "max_tracked": 150,
+    "track_hours": 26,
+    "history_interval_s": 60,
+    "history_max_rows": 40000,
+    "data_dir": "data"
+  },
+  "stages": {
+    "new_creation": {
+      "label": "Recién creados",
+      "max_age_min": 120
+    },
+    "near_graduation": {
+      "label": "Por graduarse",
+      "bonding_dex_ids": [
+        "pumpfun"
+      ],
+      "min_market_cap_usd": 40000
+    },
+    "graduated": {
+      "label": "Recién graduados",
+      "dex_ids": [
+        "pumpswap",
+        "raydium"
+      ],
+      "max_age_min": 1440
+    },
+    "trending": {
+      "label": "Tendencias"
+    }
+  },
+  "gates": {
+    "min_liquidity": {
+      "severity": "reject",
+      "min_usd": 1500
+    },
+    "min_activity": {
+      "severity": "red_flag",
+      "min_txns_h1": 5,
+      "applies_after_min": 30
+    },
+    "dump_h1": {
+      "severity": "red_flag",
+      "min_change_pct": -60
+    },
+    "sell_wall": {
+      "severity": "red_flag",
+      "max_sell_to_buy": 2,
+      "min_txns_h1": 20
+    }
+  },
+  "scoring": {
+    "unknown_neutral": 50,
+    "min_txns_h1": 10,
+    "min_txns_m5": 6,
+    "risk": {
+      "weights": {
+        "liquidity": 0.3,
+        "age": 0.15,
+        "sell_pressure": 0.25,
+        "drop": 0.15,
+        "contract": 0.15
+      },
+      "levels": {
+        "solid_max": 20,
+        "moderate_max": 35,
+        "high_max": 50
+      },
+      "liquidity": {
+        "liq_ramp": [
+          3000,
+          40000
+        ],
+        "liq_to_mcap_ramp": [
+          0.03,
+          0.25
+        ]
+      },
+      "age": {
+        "age_ramp_min": [
+          0,
+          180
+        ]
+      },
+      "sell_pressure": {
+        "sell_ratio_ramp": [
+          0.5,
+          0.7
+        ]
+      },
+      "drop": {
+        "drop_ramp_pct": [
+          5,
+          50
+        ]
+      },
+      "contract_unavailable": 50
+    },
+    "potential": {
+      "weights": {
+        "liquidity": 0.2,
+        "volume": 0.25,
+        "market_cap": 0.15,
+        "age": 0.1,
+        "buy_sell": 0.3
+      },
+      "liquidity": {
+        "liq_ramp": [
+          3000,
+          60000
+        ]
+      },
+      "volume": {
+        "turnover_ramp": [
+          0.02,
+          0.6
+        ],
+        "volume_h1_ramp": [
+          300,
+          30000
+        ]
+      },
+      "market_cap": {
+        "log10_ramp": [
+          4,
+          6.5
+        ]
+      },
+      "age": {
+        "age_ramp_min": [
+          10,
+          1440
+        ]
+      },
+      "buy_sell": {
+        "buy_ratio_ramp": [
+          0.45,
+          0.65
+        ],
+        "h1_weight": 0.6,
+        "m5_weight": 0.4
+      }
+    },
+    "ranking": {
+      "risk_penalty": 0.8,
+      "quadrant": {
+        "min_potential": 65,
+        "max_risk": 25
+      }
+    },
+    "disclaimer": "El potencial es una probabilidad basada en señales de mercado de DexScreener. No es una predicción de precio ni una recomendación de compra. DexScreener no entrega seguridad del contrato, holders, dev ni smart money."
+  },
+  "alerts": {
+    "stages": [
+      "new_creation",
+      "near_graduation",
+      "graduated"
+    ],
+    "quadrant_entry": true,
+    "max_stored": 200,
+    "sound": {
+      "quadrant": [
+        660,
+        990
+      ],
+      "volume": 0.12
+    }
+  }
+}
