@@ -6,6 +6,8 @@
 
 Solo lectura · datos reales de DexScreener · sin API key · sin servicios de pago
 
+**[▶ Probar la demo en vivo](https://miguelangel213.github.io/pulsar-radar/)**
+
 </div>
 
 ![Tabla del radar con el campo ASCII](docs/screenshots/01-radar-tabla.png)
