@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from radar.adapters import get_adapter
+from radar.alerts import AlertService
 from radar.config import load_config
 from radar.ingest import IngestService
 from radar.models import Stage
@@ -18,6 +19,7 @@ def create_app(service: Optional[RadarService] = None) -> FastAPI:
     if service is None:
         adapter = get_adapter(cfg)
         service = RadarService(IngestService(adapter, cfg), cfg)
+    alerts = AlertService(service, service.cfg)
     app = FastAPI(title="Radar de Memecoins", description="Solo lectura. Sin órdenes de compra/venta.")
     app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
                        allow_methods=["GET"], allow_headers=["*"])
@@ -47,6 +49,10 @@ def create_app(service: Optional[RadarService] = None) -> FastAPI:
                 "meta": {"quadrant": service.cfg["scoring"]["ranking"]["quadrant"], "gmgn_token_url": service.cfg["links"]["gmgn_token_url"]},
                 "disclaimer": service.cfg["scoring"]["disclaimer"],
                 "items": [i.model_dump() for i in items]}
+
+    @app.get("/alerts")
+    def get_alerts(after: Optional[int] = Query(None, ge=0, description="devuelve solo eventos con id mayor")):
+        return alerts.events(after)
 
     return app
 

@@ -42,3 +42,7 @@ body { min-height: 100dvh; -webkit-font-smoothing: antialiased; }
 @keyframes panel-in { from { transform: translateX(24px); opacity: 0 } to { transform: none; opacity: 1 } }
 .panel-in { animation: panel-in .22s cubic-bezier(.2,.7,.2,1); }
 @media (prefers-reduced-motion: reduce) { .panel-in { animation: none; } }
+
+@keyframes toast-in { from { transform: translateX(32px); opacity: 0 } to { transform: none; opacity: 1 } }
+.toast-in { animation: toast-in .25s cubic-bezier(.2,.7,.2,1); }
+@media (prefers-reduced-motion: reduce) { .toast-in { animation: none; } }

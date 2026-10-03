@@ -64,3 +64,19 @@ scoring:
     risk_penalty: 0.8          # ajustado = potencial * (1 - riesgo/100 * penalty)
     quadrant: { min_potential: 60, max_risk: 35 }   # "alto potencial, bajo riesgo"
   disclaimer: "El potencial es una probabilidad basada en señales observables. No es una predicción de precio ni una recomendación de compra."
+
+# ---------------------------------------------------------------------------
+# Alertas (etapa 6). Se evalúan en cada consulta a /alerts. Cada (tipo, token) se dispara una sola vez.
+# ---------------------------------------------------------------------------
+alerts:
+  stages: [new_creation, near_graduation, graduated]   # etapas que se vigilan
+  quadrant_entry: true                 # token entra a "alto potencial, bajo riesgo"
+  smart_money:
+    enabled: true
+    max_age_min: 10                    # X: minutos de vida máximos para la alerta de smart money
+    min_buyers: 1                      # wallets smart money mínimas
+  max_stored: 200
+  sound:                               # frecuencias (Hz) de las dos notas de cada alerta, y volumen 0-1
+    quadrant: [660, 990]
+    smart_money: [880, 1320]
+    volume: 0.12

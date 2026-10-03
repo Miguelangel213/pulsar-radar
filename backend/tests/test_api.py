@@ -70,3 +70,9 @@ def test_meta_exposes_quadrant_and_link_template(client):
     m = get(client, stage="graduated")["meta"]
     assert m["quadrant"] == {"min_potential": 60, "max_risk": 35}
     assert "{address}" in m["gmgn_token_url"]
+
+
+def test_alerts_endpoint(client):
+    d = client.get("/alerts").json()
+    assert {"events", "last_id", "config"} <= set(d)
+    assert client.get("/alerts", params={"after": d["last_id"]}).json()["events"] == []

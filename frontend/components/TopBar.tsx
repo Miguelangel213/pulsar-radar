@@ -1,13 +1,16 @@
-export function TopBar({ mode }: { mode: "MOCK" | "REAL" | undefined }) {
+import type { ReactNode } from "react";
+
+export function TopBar({ mode, children }: { mode: "MOCK" | "REAL" | undefined; children?: ReactNode }) {
   return (
     <header className="flex items-center justify-between gap-4 px-4 sm:px-6 h-14 border-b border-line">
-      <div className="flex items-baseline gap-3">
-        <span className="font-serif text-[30px] leading-none tracking-tight text-ink">Radar</span>
-        <span className="hidden sm:inline text-[12px] text-dim">memecoins desde el minuto cero</span>
+      <div className="flex items-center gap-2.5 text-[13px]">
+        <span className="size-2 bg-flame" aria-hidden />
+        <span className="font-medium">Radar de Memecoins</span>
+        <span className="hidden md:inline text-dim">desde el minuto cero · solo lectura</span>
       </div>
       <div className="flex items-center gap-3 text-[12px]">
-        <span className="hidden md:inline text-dim">Solo lectura · sin órdenes</span>
-        <span className={`num px-2 py-1 border text-[11px] ${mode === "REAL" ? "border-solid text-solid" : "border-flame text-flame"}`}>
+        {children}
+        <span className={`num h-8 px-2 inline-flex items-center border text-[11px] ${mode === "REAL" ? "border-solid text-solid" : "border-flame text-flame"}`}>
           {mode === "REAL" ? "DATOS REALES" : mode === "MOCK" ? "MOCK" : "…"}
         </span>
       </div>

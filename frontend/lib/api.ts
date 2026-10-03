@@ -11,3 +11,9 @@ export async function fetchRadar(stage: StageKey, f: Filters, sort: SortKey, ord
   if (!r.ok) throw new Error(r.status === 500 || r.status === 502 || r.status === 504 ? "No se pudo conectar con el backend (puerto 8000)" : `Error ${r.status}`);
   return r.json();
 }
+
+export async function fetchAlerts(after: number | null, signal: AbortSignal): Promise<import("./types").AlertsResponse> {
+  const r = await fetch(`/api/alerts${after === null ? "" : `?after=${after}`}`, { signal, cache: "no-store" });
+  if (!r.ok) throw new Error(`Error ${r.status}`);
+  return r.json();
+}

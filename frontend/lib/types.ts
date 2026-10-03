@@ -28,3 +28,12 @@ export const STAGES: { key: StageKey; label: string }[] = [
   { key: "trending", label: "Tendencias" },
 ];
 export const RISK_LEVELS: RiskLevel[] = ["Sólido", "Moderado", "Alto", "Extremo"];
+
+export interface AlertEvent {
+  id: number; type: "quadrant" | "smart_money" | "test"; ts: number; address: string; symbol: string; stage: StageKey;
+  message: string; potential: number; risk: number; age_min: number;
+}
+export interface AlertsResponse {
+  events: AlertEvent[]; last_id: number;
+  config: { smart_money_max_age_min: number; sound: { quadrant: number[]; smart_money: number[]; volume: number } };
+}
