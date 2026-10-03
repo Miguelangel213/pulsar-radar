@@ -36,8 +36,8 @@ gates:
   dev_rug_history: { severity: reject,   max_rugs: 1 }
 
 links:
-  # PROVISIONAL: formato de URL pública de GMGN, sin confirmar con documentación oficial.
-  gmgn_token_url: "https://gmgn.ai/sol/token/{address}"
+  # Formato de página de token según la documentación oficial de gmgn-cli (README).
+  gmgn_token_url: "https://gmgn.ai/?chain=sol&token={address}"
 
 # ---------------------------------------------------------------------------
 # Scoring (etapa 3). Reglas explícitas, sin ML. Valores PROVISIONALES.
