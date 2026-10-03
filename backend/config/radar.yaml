@@ -34,3 +34,29 @@ gates:
   top10_concentration: { severity: red_flag, max_rate: 0.40 }
   dev_holding:     { severity: red_flag, max_rate: 0.15 }
   dev_rug_history: { severity: reject,   max_rugs: 1 }
+
+# ---------------------------------------------------------------------------
+# Scoring (etapa 3). Reglas explícitas, sin ML. Valores PROVISIONALES.
+# Un "ramp" mapea lineal [lo, hi] -> [0, 100] con tope en los extremos.
+# ---------------------------------------------------------------------------
+scoring:
+  unknown_neutral: 50          # subpuntaje cuando no hay ningún dato
+  risk:                        # 0 = sin riesgo, 100 = riesgo máximo
+    weights: { contract: 0.30, liquidity: 0.20, holders: 0.25, dev: 0.15, age: 0.10 }
+    levels: { solid_max: 25, moderate_max: 50, high_max: 75 }   # >75 = Extremo
+    contract: { tax_ramp: [0, 20], rug_ramp: [0, 0.5], mint_points: 20, freeze_points: 15 }
+    liquidity: { liq_ramp: [2000, 20000], liq_to_mcap_ramp: [0.05, 0.30] }
+    holders: { top10_ramp: [0.15, 0.60], bundler_ramp: [0.05, 0.40], sniper_ramp: [0.05, 0.35], holders_count_ramp: [50, 500] }
+    dev: { hold_ramp: [0.02, 0.30], rugs_ramp: [0, 3], sold_points: 20 }
+    age: { age_ramp_min: [0, 60] }       # más joven = más riesgo
+  potential:                   # 0 = sin señales, 100 = señales máximas
+    weights: { velocity: 0.25, buyers: 0.25, pressure: 0.20, dev: 0.15, narrative: 0.15 }
+    velocity: { pace_ramp: [0.01, 0.08], buyers_per_min_ramp: [1, 15] }
+    buyers: { smart_money_ramp: [0, 5], kol_ramp: [0, 3], early_entry_max_min: 5, early_bonus: 10 }
+    pressure: { buy_ratio_ramp: [0.5, 0.8], volume_to_mcap_ramp: [0.3, 3.0] }
+    dev: { clean_base: 60, per_launch_points: 3, max_launch_points: 20, sold_penalty: 40 }
+    narrative: { trending_share_ramp: [0.10, 0.35] }
+  ranking:
+    risk_penalty: 0.8          # ajustado = potencial * (1 - riesgo/100 * penalty)
+    quadrant: { min_potential: 60, max_risk: 35 }   # "alto potencial, bajo riesgo"
+  disclaimer: "El potencial es una probabilidad basada en señales observables. No es una predicción de precio ni una recomendación de compra."
