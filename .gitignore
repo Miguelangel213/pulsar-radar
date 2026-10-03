@@ -6,3 +6,6 @@ __pycache__/
 backend/data/*.json
 *.tmp
 backend/data/*.db-journal
+
+# Documentación técnica privada (no se publica)
+.privado/
