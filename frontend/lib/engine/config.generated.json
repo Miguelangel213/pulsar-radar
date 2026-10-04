@@ -91,10 +91,12 @@
     "base_url": "https://openapi.gmgn.ai",
     "chain": "sol",
     "rank_interval": "1h",
-    "scan_interval_s": 20,
-    "cache_ttl_s": 15,
+    "scan_interval_s": 45,
+    "cache_ttl_s": 30,
     "min_pause_s": 30,
-    "max_pause_s": 900,
+    "pause_margin_s": 20,
+    "backoff_base_s": 120,
+    "max_pause_s": 3600,
     "trenches_body": {
       "filters": [
         "offchain",

@@ -63,10 +63,12 @@ gmgn:
   base_url: "https://openapi.gmgn.ai"
   chain: sol
   rank_interval: "1h"
-  scan_interval_s: 20               # GMGN free tiene límites bajos: consulta con calma
-  cache_ttl_s: 15
+  scan_interval_s: 45               # GMGN free tiene límites bajos: consulta con calma
+  cache_ttl_s: 30
   min_pause_s: 30                   # si GMGN pide esperar (429/ban), pausa al menos esto...
-  max_pause_s: 900                  # ...y como máximo esto
+  pause_margin_s: 20                # ...más este margen de seguridad (relojes distintos: reintentar 1 s antes cuenta como infracción)
+  backoff_base_s: 120               # si vuelve a responder 429 tras la pausa, la espera crece: 120, 240, 480... s
+  max_pause_s: 3600                 # tope de cualquier espera (por si GMGN mandara un valor absurdo)
   trenches_body: { filters: [offchain, onchain], launchpad_platform_v2: true, limit: 80, quote_address_type: [4, 5, 3, 1, 13, 0] }
 
 # Hard gates con datos de GMGN (solo se evalúan si el token trae datos de GMGN).

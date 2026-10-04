@@ -46,6 +46,8 @@ export interface GmgnStatus {
   active: boolean;                           // la última consulta usó GMGN
   paused_until: number | null;               // epoch s: GMGN pidió esperar (límite/bloqueo)
   error: "invalid_key" | "rate_limited" | "unreachable" | null;
+  reason?: string | null;                    // motivo que dio GMGN al frenarnos (texto de GMGN, sin datos sensibles)
+  strikes?: number;                          // veces seguidas que GMGN respondió 429
 }
 export interface Filters { riskLevel: RiskLevel | ""; maxAge: string; minLiquidity: string; includeRejected: boolean }
 

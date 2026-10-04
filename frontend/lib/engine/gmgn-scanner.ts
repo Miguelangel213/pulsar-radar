@@ -27,10 +27,11 @@ export class GmgnScanner {
 
   private async doScan(now: number): Promise<ScoredEntry[]> {
     this.lastError = null;
-    const trenches = (await this.client.trenches()) as Record<string, Pair[]> | null;
+    // Primero la consulta barata (ranking, peso 1): si GMGN todavía nos frena, nos enteramos sin gastar la cara (trenches, peso 3).
     let rank: Pair[] = [];
     try { rank = await this.client.rank(); }
     catch (e) { if (e instanceof GmgnPausedError) throw e; if (!(e instanceof GmgnError)) throw e; this.lastError = "ranking no disponible"; }   // las tendencias son opcionales
+    const trenches = (await this.client.trenches()) as Record<string, Pair[]> | null;
 
     const records = new Map<string, GmgnRecord>();
     for (const cat of CATEGORIES) {

@@ -31,7 +31,7 @@ export class SourceManager implements Scanner {
 
   gmgnStatus(): GmgnStatus {
     const until = this.client.pausedUntilMs > Date.now() ? Math.ceil(this.client.pausedUntilMs / 1000) : null;
-    return { enabled: this.client.hasKey, active: this.active === "gmgn", paused_until: until, error: until ? "rate_limited" : this.error };
+    return { enabled: this.client.hasKey, active: this.active === "gmgn", paused_until: until, error: until ? "rate_limited" : this.error, reason: this.client.lastReason, strikes: this.client.strikes };
   }
 
   async scan(force = false): Promise<ScoredEntry[]> {

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import CONFIG from "../lib/engine/config.generated.json";
 import { AlertService } from "../lib/engine/alerts";
 import { buildEntry } from "../lib/engine/gates";
-import { GmgnAuthError, GmgnClient, GmgnError, GmgnPausedError, type GmgnKeyStore } from "../lib/engine/gmgn-client";
+import { GmgnAuthError, GmgnClient, GmgnError, GmgnPausedError, memoryPauseStore, type GmgnKeyStore, type GmgnPauseStore } from "../lib/engine/gmgn-client";
 import { classifyGmgn, normalizeGmgn, type GmgnRecord } from "../lib/engine/gmgn-normalize";
 import { GmgnScanner } from "../lib/engine/gmgn-scanner";
 import { scoreEntry } from "../lib/engine/scoring";
@@ -27,7 +27,7 @@ const memKeys = (initial: string | null = SECRET): GmgnKeyStore & { v: string | 
 const json = (b: unknown, status = 200, headers: Record<string, string> = {}) => new Response(JSON.stringify(b), { status, headers });
 
 interface Call { url: string; init: RequestInit }
-function setup(handler?: (c: Call) => Response) {
+function setup(handler?: (c: Call) => Response, pause: GmgnPauseStore = memoryPauseStore()) {
   const calls: Call[] = [], t = { ms: NOW * 1000 }, keys = memKeys();
   const fetchFn = (async (url: string, init: RequestInit) => {
     const c = { url: String(url), init }; calls.push(c);
@@ -35,8 +35,8 @@ function setup(handler?: (c: Call) => Response) {
     return json(c.url.includes("/v1/trenches") ? trenches : rank);
   }) as unknown as typeof fetch;
   let n = 0;
-  const client = new GmgnClient(cfg, keys, fetchFn, () => t.ms, () => `u${++n}`);
-  return { client, calls, t, keys };
+  const client = new GmgnClient(cfg, keys, fetchFn, () => t.ms, () => `u${++n}`, pause);
+  return { client, calls, t, keys, pause, fetchFn, mk: () => new GmgnClient(cfg, keys, fetchFn, () => t.ms, () => `u${++n}`, pause) };
 }
 
 const rec = (row: Pair, extra: Partial<GmgnRecord> = {}): GmgnRecord => ({ row, categories: ["new_creation"], ...extra });
@@ -77,42 +77,105 @@ describe("cliente de GMGN (navegador)", () => {
     await expect(b.client.rank()).rejects.toBeInstanceOf(GmgnAuthError);
   });
 
-  it("la caché de 15 s y la agrupación evitan llamadas repetidas", async () => {
+  it("la caché y la agrupación evitan llamadas repetidas", async () => {
+    const ttl = cfg.gmgn.cache_ttl_s * 1000;
     const { client, calls, t } = setup();
     await Promise.all([client.trenches(), client.trenches(), client.trenches()]);
     expect(calls.length).toBe(1);
-    t.ms += 14_000; await client.trenches();
+    t.ms += ttl - 1_000; await client.trenches();
     expect(calls.length).toBe(1);
     t.ms += 2_000; await client.trenches();
     expect(calls.length).toBe(2);
   });
 
+  it("consulta con calma: la caché dura 30 s y el escaneo se repite cada 45 s", () => {
+    expect(cfg.gmgn.cache_ttl_s).toBeGreaterThanOrEqual(30);
+    expect(cfg.gmgn.scan_interval_s).toBeGreaterThanOrEqual(45);
+  });
+
   it("tras un 429/ban espera lo que GMGN indica (acotado) y NO insiste", async () => {
     const reset = NOW + 200;
     const { client, calls, t } = setup(() => json({ code: 429, error: "RATE_LIMIT_BANNED", reset_at: reset }, 429));
-    await expect(client.trenches()).rejects.toMatchObject({ untilEpochS: reset });
+    await expect(client.trenches()).rejects.toMatchObject({ untilEpochS: reset + cfg.gmgn.pause_margin_s });   // lo que pide GMGN + margen de seguridad
     expect(calls.length).toBe(1);
     for (let i = 0; i < 10; i++) await expect(client.rank()).rejects.toBeInstanceOf(GmgnPausedError);
     expect(calls.length).toBe(1);                                              // ni una llamada más durante la pausa
-    t.ms += 201_000;
+    t.ms += 100_000;
+    await expect(client.trenches()).rejects.toBeInstanceOf(GmgnPausedError);   // aún dentro del margen de seguridad: sigue sin llamar
+    expect(calls.length).toBe(1);
+    t.ms += 121_000;
     await expect(client.trenches()).rejects.toBeInstanceOf(GmgnPausedError);   // terminó la pausa: vuelve a intentar (y GMGN vuelve a decir 429)
     expect(calls.length).toBe(2);
   });
 
-  it("la pausa se acota entre el mínimo y el máximo configurados", async () => {
+  it("la primera espera nunca baja de la base de reintento, y ninguna supera el tope", async () => {
     const soon = setup(() => json({ reset_at: NOW + 1 }, 429));
     await expect(soon.client.trenches()).rejects.toBeInstanceOf(GmgnPausedError);
-    expect(soon.client.pausedUntilMs).toBe(NOW * 1000 + cfg.gmgn.min_pause_s * 1000);
+    expect(soon.client.pausedUntilMs).toBe(NOW * 1000 + cfg.gmgn.backoff_base_s * 1000);
     const far = setup(() => json({ reset_at: NOW + 999_999 }, 429));
     await expect(far.client.trenches()).rejects.toBeInstanceOf(GmgnPausedError);
     expect(far.client.pausedUntilMs).toBe(NOW * 1000 + cfg.gmgn.max_pause_s * 1000);
+  });
+
+  it("si GMGN pide una espera larga, se respeta entera más el margen (antes se recortaba a 15 min y se reintentaba antes de tiempo)", async () => {
+    const { client } = setup(() => json({ reset_at: NOW + 1800 }, 429));
+    await expect(client.trenches()).rejects.toBeInstanceOf(GmgnPausedError);
+    expect(client.pausedUntilMs).toBe(NOW * 1000 + (1800 + cfg.gmgn.pause_margin_s) * 1000);
+  });
+
+  it("si tras la pausa GMGN vuelve a decir 429, la espera se duplica (120, 240, 480 s) y una respuesta buena reinicia la racha", async () => {
+    let limited = true;
+    const { client, t } = setup(() => (limited ? json({ reset_at: NOW + 1 }, 429) : json(rank)));
+    const waits: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      await expect(client.rank()).rejects.toBeInstanceOf(GmgnPausedError);
+      waits.push((client.pausedUntilMs - t.ms) / 1000);
+      t.ms = client.pausedUntilMs + 1000;                                        // pasa la pausa
+    }
+    expect(waits).toEqual([120, 240, 480]);
+    expect(client.strikes).toBe(3);
+    limited = false;
+    await expect(client.rank()).resolves.toBeTruthy();
+    expect(client.strikes).toBe(0);
+    limited = true; t.ms += 60_000;                                              // caché vencida y otra vez limitado: sirve el último dato bueno...
+    await expect(client.rank()).resolves.toBeTruthy();
+    expect(client.strikes).toBe(1);                                              // ...pero la racha vuelve a empezar por la base
+    expect((client.pausedUntilMs - t.ms) / 1000).toBe(120);
+  });
+
+  it("la pausa se comparte entre pestañas y sobrevive a recargar la página (otro cliente con el mismo almacén no llama a GMGN)", async () => {
+    const a = setup(() => json({ reset_at: NOW + 200 }, 429));
+    await expect(a.client.trenches()).rejects.toBeInstanceOf(GmgnPausedError);
+    const callsAntes = a.calls.length;
+    const otraPestana = a.mk();                                                  // pestaña nueva / recarga: cliente nuevo, mismo almacén
+    await expect(otraPestana.rank()).rejects.toBeInstanceOf(GmgnPausedError);
+    await expect(otraPestana.trenches()).rejects.toBeInstanceOf(GmgnPausedError);
+    expect(a.calls.length).toBe(callsAntes);                                     // ninguna llamada nueva
+    expect(otraPestana.strikes).toBe(1);
+    expect(otraPestana.lastReason).toBe(a.client.lastReason);                    // el motivo también sobrevive a recargar
+  });
+
+  it("guarda el motivo que da GMGN (sin datos sensibles) para mostrarlo en el panel", async () => {
+    const body = { code: 429, error: "RATE_LIMIT_BANNED", message: "IP is temporarily banned due to repeated rate limit violations", tier: "free", reset_at: NOW + 100, upgrade_message: "x".repeat(500) };
+    const { client } = setup(() => json(body, 429));
+    await expect(client.trenches()).rejects.toBeInstanceOf(GmgnPausedError);
+    expect(client.lastReason).toBe("RATE_LIMIT_BANNED · IP is temporarily banned due to repeated rate limit violations · plan free");
+    expect(client.lastReason).not.toContain("xxxx");
+  });
+
+  it("quitar o cambiar la key limpia la pausa guardada", async () => {
+    const a = setup(() => json({ reset_at: NOW + 200 }, 429));
+    await expect(a.client.trenches()).rejects.toBeInstanceOf(GmgnPausedError);
+    a.client.reset();
+    expect(a.pause.read()).toMatchObject({ pausedUntilMs: 0, strikes: 0 });
+    expect(a.client.strikes).toBe(0);
   });
 
   it("durante la pausa sirve el último dato bueno, y reset() olvida todo (cambio de key)", async () => {
     let limited = false;
     const { client, calls, t } = setup(() => (limited ? json({ reset_at: NOW + 300 }, 429) : json(trenches)));
     await client.trenches();
-    t.ms += 20_000; limited = true;
+    t.ms += cfg.gmgn.cache_ttl_s * 1000 + 5_000; limited = true;
     await expect(client.trenches()).resolves.toBeTruthy();                       // 429 pero hay dato previo: se sirve
     t.ms += 1_000; await expect(client.trenches()).resolves.toBeTruthy();
     expect(calls.length).toBe(2);
@@ -221,6 +284,17 @@ describe("escáner de GMGN con datos reales", () => {
     expect(es.length).toBe(1);
     expect(es[0].entry.token.stages).toEqual(["near_graduation", "trending"]);
     expect(es[0].entry.token.liquidity_usd).toBe(r.liquidity);                                // al estar en el ranking, la liquidez es fiable
+  });
+
+  it("pide primero la consulta barata (ranking) y, si GMGN todavía frena, no gasta la cara (trenches)", async () => {
+    const urls: string[] = [];
+    const ok = setup((c) => { urls.push(c.url); return json(c.url.includes("/v1/trenches") ? trenches : rank); });
+    await new GmgnScanner(ok.client, cfg, () => NOW).scan(true);
+    expect(urls[0]).toContain("/v1/market/rank"); expect(urls[1]).toContain("/v1/trenches");
+    const limited = setup((c) => { urls.push("L:" + c.url); return json({ reset_at: NOW + 100 }, 429); });
+    await expect(new GmgnScanner(limited.client, cfg, () => NOW).scan(true)).rejects.toBeInstanceOf(GmgnPausedError);
+    expect(urls.filter((u) => u.startsWith("L:")).length).toBe(1);               // solo se gastó la consulta barata
+    expect(urls.find((u) => u.startsWith("L:"))).toContain("/v1/market/rank");
   });
 
   it("si el ranking falla, los trenches siguen funcionando; si GMGN pide esperar, el error sube", async () => {
@@ -340,7 +414,7 @@ describe("selección de fuente: GMGN con key, DexScreener si no", () => {
     const callsBefore = m.calls.length;
     for (let i = 0; i < 5; i++) await m.mgr.scan(true);
     expect(m.calls.length).toBe(callsBefore);                                                 // durante la pausa no se llama a GMGN
-    banned = false; m.t.ms += 200_000;
+    banned = false; m.t.ms += 400_000;
     await m.mgr.scan(true);
     expect(m.mgr.active).toBe("gmgn"); expect(m.mgr.gmgnStatus().error).toBeNull();
   });
@@ -370,12 +444,12 @@ describe("alerta de smart money (solo con GMGN)", () => {
 
     expect((await alerts.events(null)).events).toEqual([]);                                  // línea base
     rows = [rows[0], fresh({ address: "SM1", symbol: "SMT", smart_degen_count: 3 }), fresh({ address: "OLDSM", smart_degen_count: 5, created_timestamp: Math.floor(t.ms / 1000) - 3000 })];
-    t.ms += 30_000;
+    t.ms += 50_000;
     const r1 = await alerts.events(0);
     const sm = r1.events.filter((e) => e.type === "smart_money");
     expect(sm.map((e) => e.address)).toEqual(["SM1"]);                                       // el token de 50 min queda fuera (X = 10)
     expect(sm[0].message).toContain("Smart money entró a SMT"); expect(sm[0].message).toContain("3 wallets");
-    t.ms += 30_000;
+    t.ms += 50_000;
     expect((await alerts.events(r1.last_id)).events.filter((e) => e.type === "smart_money")).toEqual([]);   // no se repite
   });
 });

@@ -36,7 +36,7 @@ function Inner({ source, status, onApplied }: Props) {
   let msg: { text: string; tone: string };
   if (!enabled) msg = { text: "Usando DexScreener, sin key.", tone: "text-dim" };
   else if (status?.error === "invalid_key") msg = { text: "GMGN rechazó la key. Revísala o pega otra.", tone: "text-extreme" };
-  else if (status?.paused_until) msg = { text: `GMGN pidió esperar hasta las ${hhmm(status.paused_until)} (límite de uso). Mientras tanto ves DexScreener y vuelve solo.`, tone: "text-high" };
+  else if (status?.paused_until) msg = { text: `GMGN pidió esperar hasta las ${hhmm(status.paused_until)} (límite de uso). Mientras tanto ves DexScreener y vuelve solo.${(status.strikes ?? 0) > 1 ? ` Ya van ${status.strikes} avisos seguidos: la espera se alarga a propósito para no empeorarlo.` : ""}`, tone: "text-high" };
   else if (status?.error === "unreachable") msg = { text: "No se pudo contactar con GMGN; ves DexScreener hasta que responda.", tone: "text-high" };
   else if (status?.active) msg = { text: "GMGN conectado: tokens desde sus primeros minutos, con seguridad, holders y smart money.", tone: "text-solid" };
   else msg = { text: "Conectando con GMGN…", tone: "text-dim" };
@@ -52,6 +52,7 @@ function Inner({ source, status, onApplied }: Props) {
           <div className="font-medium">Fuente de datos</div>
           <p className="text-dim leading-relaxed">Por defecto se usa DexScreener. Con tu propia API key de GMGN ves los tokens desde sus primeros minutos, con señales de seguridad, holders, dev y smart money.</p>
           <p className={msg.tone} role="status">{msg.text}</p>
+          {status?.paused_until && status.reason && <p className="text-[12px] text-dim leading-relaxed">Motivo según GMGN: {status.reason}. Mantén una sola pestaña abierta y no recargues mientras esperas.</p>}
           <form onSubmit={(e) => { e.preventDefault(); connect(); }} className="space-y-2">
             <label className="block text-[12px] text-dim" htmlFor="gmgn-key">API key de GMGN</label>
             <input id="gmgn-key" name="gmgn-key" type="password" autoComplete="off" spellCheck={false} value={value} onChange={(e) => { setValue(e.target.value); setProblem(null); }}
