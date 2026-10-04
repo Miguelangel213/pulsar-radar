@@ -1,0 +1,10 @@
+# Proxy gratuito (Cloudflare Workers) que guarda la API key de GMGN como SECRETO y reenvía
+# solo consultas de lectura permitidas. La key NO está en este archivo ni en el repositorio:
+#   npx wrangler secret put GMGN_API_KEY
+name = "pulsar-radar-gmgn"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+[vars]
+# Orígenes (páginas web) autorizados a usar el proxy. Separados por comas.
+ALLOWED_ORIGINS = "https://miguelangel213.github.io,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080"
