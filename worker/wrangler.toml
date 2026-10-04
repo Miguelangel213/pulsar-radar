@@ -4,6 +4,8 @@
 name = "pulsar-radar-gmgn"
 main = "src/index.ts"
 compatibility_date = "2025-09-01"
+workers_dev = true      # dirección pública https://pulsar-radar-gmgn.<subdominio>.workers.dev
+preview_urls = false    # sin direcciones de vista previa: menos superficie expuesta
 
 [vars]
 # Orígenes (páginas web) autorizados a usar el proxy. Separados por comas.

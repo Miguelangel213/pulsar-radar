@@ -50,7 +50,7 @@ const ROUTES: Record<string, Route> = {
 
 const inflight = new Map<string, Promise<Result>>();
 
-interface Result { status: number; body: unknown; stale?: boolean; fetchedAt: number }
+interface Result { status: number; body: unknown; stale?: boolean; fetchedAt: number; bannedUntil?: number }
 
 function allowedOrigins(env: Env): Set<string> {
   return new Set((env.ALLOWED_ORIGINS ?? "").split(",").map((s) => s.trim()).filter(Boolean));
@@ -62,6 +62,37 @@ function json(body: unknown, status: number, extra: Record<string, string> = {})
 
 function cors(origin: string): Record<string, string> {
   return { "Access-Control-Allow-Origin": origin, Vary: "Origin", "Access-Control-Allow-Methods": "GET, OPTIONS", "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Max-Age": "86400" };
+}
+
+const MIN_BAN_S = 30, MAX_BAN_S = 900, DEFAULT_BAN_S = 60;
+
+/** Instante (ms) hasta el que GMGN nos pide no insistir: cabeceras Retry-After / X-RateLimit-Reset o `reset_at` del cuerpo. */
+async function bannedUntilFrom(res: Response, now: number): Promise<number> {
+  let sec: number | null = null;
+  const ra = Number(res.headers.get("Retry-After"));
+  if (Number.isFinite(ra) && ra > 0) sec = ra;
+  const resetHeader = Number(res.headers.get("X-RateLimit-Reset"));
+  let resetEpoch = Number.isFinite(resetHeader) && resetHeader > 1e9 ? resetHeader : null;
+  try { const b = await res.clone().json() as { reset_at?: number }; if (typeof b.reset_at === "number" && b.reset_at > 1e9) resetEpoch = b.reset_at; } catch { /* cuerpo no JSON */ }
+  if (resetEpoch !== null) sec = resetEpoch - now / 1000;
+  const wait = Math.min(MAX_BAN_S, Math.max(MIN_BAN_S, sec ?? DEFAULT_BAN_S));
+  return now + wait * 1000;
+}
+
+const banReq = () => new Request("https://cache.invalid/__ban");
+async function currentBan(deps: Deps): Promise<number | null> {
+  const hit = await deps.cache.match(banReq());
+  const until = hit ? Number(hit.headers.get("X-Banned-Until")) : 0;
+  return until > deps.now() ? until : null;
+}
+
+async function logUpstreamError(route: Route, res: Response): Promise<void> {
+  try {
+    const keep = ["retry-after", "x-ratelimit-limit", "x-ratelimit-remaining", "x-ratelimit-reset", "cf-ray", "content-type"];
+    const headers = Object.fromEntries(keep.map((h) => [h, res.headers.get(h)]).filter(([, v]) => v));
+    const body = (await res.clone().text()).slice(0, 300);
+    console.log(JSON.stringify({ upstream_error: route.path, status: res.status, headers, body }));
+  } catch { /* el registro nunca debe romper la respuesta */ }
 }
 
 async function fromUpstream(route: Route, query: Record<string, string>, env: Env, deps: Deps): Promise<Result> {
@@ -76,7 +107,11 @@ async function fromUpstream(route: Route, query: Record<string, string>, env: En
   } catch {
     return { status: 502, body: { error: "gmgn_unreachable" }, fetchedAt: deps.now() };
   }
-  if (res.status === 429) return { status: 429, body: { error: "gmgn_rate_limited" }, fetchedAt: deps.now() };
+  if (res.status >= 400) await logUpstreamError(route, res);   // solo a los logs privados de Cloudflare (wrangler tail), nunca al visitante
+  if (res.status === 429) {
+    const until = await bannedUntilFrom(res, deps.now());
+    return { status: 429, body: { error: "gmgn_rate_limited", retry_after_s: Math.max(1, Math.ceil((until - deps.now()) / 1000)) }, fetchedAt: deps.now(), bannedUntil: until };
+  }
   if (res.status === 401 || res.status === 403) return { status: 502, body: { error: "gmgn_auth" }, fetchedAt: deps.now() };
   if (res.status >= 400) return { status: 502, body: { error: "gmgn_error" }, fetchedAt: deps.now() };
   let payload: { code?: number; data?: unknown };
@@ -95,9 +130,16 @@ async function load(key: string, route: Route, query: Record<string, string>, en
     cached = { status: 200, body: await hit.json(), fetchedAt: Number(hit.headers.get("X-Fetched-At")) };
     if (deps.now() - cached.fetchedAt < FRESH_S * 1000) return cached;
   }
+  const ban = await currentBan(deps);
+  if (ban !== null) {                                        // GMGN nos pidió esperar: no insistir (insistir alarga el bloqueo)
+    return cached ? { ...cached, stale: true } : { status: 429, body: { error: "gmgn_rate_limited", retry_after_s: Math.max(1, Math.ceil((ban - deps.now()) / 1000)) }, fetchedAt: deps.now() };
+  }
   const pending = inflight.get(key) ?? fromUpstream(route, query, env, deps).finally(() => inflight.delete(key));
   inflight.set(key, pending);
   const fresh = await pending;
+  if (fresh.bannedUntil) {
+    await deps.cache.put(banReq(), new Response("{}", { headers: { "Cache-Control": `max-age=${Math.ceil((fresh.bannedUntil - deps.now()) / 1000)}`, "X-Banned-Until": String(fresh.bannedUntil) } }));
+  }
   if (fresh.status === 200) {
     await deps.cache.put(cacheReq, new Response(JSON.stringify(fresh.body), {
       headers: { "Cache-Control": `max-age=${STALE_S}`, "X-Fetched-At": String(fresh.fetchedAt), "Content-Type": "application/json" },
@@ -135,5 +177,6 @@ declare const caches: { default: Deps["cache"] };
 
 export default {
   fetch: (request: Request, env: Env): Promise<Response> =>
-    handle(request, env, { fetchFn: fetch, cache: caches.default, now: Date.now, uuid: () => crypto.randomUUID() }),
+    // fetch se envuelve en una función flecha: en Workers, un fetch guardado en un objeto pierde su contexto ('Illegal invocation')
+    handle(request, env, { fetchFn: (input, init) => fetch(input, init), cache: caches.default, now: () => Date.now(), uuid: () => crypto.randomUUID() }),
 };

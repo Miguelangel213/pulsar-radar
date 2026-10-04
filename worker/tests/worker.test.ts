@@ -94,6 +94,44 @@ describe("proxy de GMGN", () => {
     expect(bad.status).toBe(502); expect(await bad.json()).toEqual({ error: "gmgn_error" });
   });
 
+  it("en 429 informa cuánto esperar (si GMGN lo dice) y registra el detalle solo en los logs privados", async () => {
+    const logs: string[] = []; const orig = console.log; console.log = (m: string) => logs.push(m);
+    try {
+      upstream = () => new Response('{"message":"too many requests"}', { status: 429, headers: { "Retry-After": "120" } });
+      const res = await handle(req("/trenches"), env, deps());
+      expect(res.status).toBe(429);
+      const body = await res.json();
+      expect(body).toEqual({ error: "gmgn_rate_limited", retry_after_s: 120 });
+      expect(JSON.stringify(body)).not.toContain("too many requests");          // el detalle NO llega al visitante
+      expect(logs.join("")).toContain("too many requests"); expect(logs.join("")).not.toContain(SECRET);
+    } finally { console.log = orig; }
+  });
+
+  it("tras un 429/ban NO vuelve a llamar a GMGN hasta que termine (insistir alarga el bloqueo)", async () => {
+    const resetAt = Math.floor(t / 1000) + 200;                       // GMGN: bloqueado 200 s
+    upstream = () => new Response(JSON.stringify({ code: 429, error: "RATE_LIMIT_BANNED", reset_at: resetAt }), { status: 429 });
+    const first = await handle(req("/trenches"), env, deps());
+    expect(first.status).toBe(429); expect((await first.json()).retry_after_s).toBe(200);
+    expect(calls.length).toBe(1);
+    for (let i = 0; i < 10; i++) await handle(req(i % 2 ? "/rank" : "/trenches"), env, deps());   // el front sigue insistiendo
+    expect(calls.length).toBe(1);                                      // ninguna llamada más a GMGN
+    t += 100_000;
+    const mid = await handle(req("/rank"), env, deps());
+    expect((await mid.json()).retry_after_s).toBe(100);                // la cuenta atrás avanza
+    expect(calls.length).toBe(1);
+    t += 101_000; upstream = () => ok({ new_creation: [] });           // el bloqueo terminó
+    const after = await handle(req("/trenches"), env, deps());
+    expect(after.status).toBe(200); expect(calls.length).toBe(2);
+  });
+
+  it("durante un ban sirve la última respuesta buena (stale) en vez de error", async () => {
+    await handle(req("/trenches"), env, deps());                        // dato bueno en caché
+    t += 20_000;
+    upstream = () => new Response(JSON.stringify({ code: 429, reset_at: Math.floor(t / 1000) + 300 }), { status: 429 });
+    const res = await handle(req("/trenches"), env, deps());
+    expect(res.status).toBe(200); expect(await res.json()).toMatchObject({ stale: true });
+  });
+
   it("traduce los errores de GMGN sin filtrar detalles", async () => {
     upstream = () => new Response("{}", { status: 429 });
     expect((await handle(req("/trenches"), env, deps())).status).toBe(429);
@@ -122,5 +160,26 @@ describe("proxy de GMGN", () => {
     const d = deps(); d.fetchFn = (async () => { throw new TypeError("network"); }) as unknown as typeof fetch;
     const res = await handle(req("/trenches"), env, d);
     expect(res.status).toBe(502); expect(await res.json()).toEqual({ error: "gmgn_unreachable" });
+  });
+});
+
+describe("entrada real del Worker (export default)", () => {
+  it("llama a fetch sin perder su contexto (en Cloudflare, un fetch guardado en un objeto lanza 'Illegal invocation')", async () => {
+    const { default: worker } = await import("../src/index");
+    let upstreamCalls = 0;
+    const strictFetch = function (this: unknown, ..._a: unknown[]) {
+      if (this !== undefined && this !== globalThis) throw new TypeError("Illegal invocation");   // como el fetch de Workers
+      upstreamCalls++;
+      return Promise.resolve(new Response(JSON.stringify({ code: 0, data: { rank: [] } })));
+    };
+    const fakeCache = new FakeCache();
+    const g = globalThis as unknown as Record<string, unknown>;
+    const prev = { fetch: g.fetch, caches: g.caches };
+    g.fetch = strictFetch; g.caches = { default: fakeCache };
+    try {
+      const res = await worker.fetch(req("/rank"), env);
+      expect(res.status).toBe(200);
+      expect(upstreamCalls).toBe(1);
+    } finally { g.fetch = prev.fetch; g.caches = prev.caches; }
   });
 });
