@@ -136,7 +136,7 @@ describe("conversión de campos de GMGN (verificada con una respuesta real)", ()
       expect(t.address).toBe(row.address);
       expect(t.symbol.length).toBeGreaterThan(0);
       expect(t.age_min === null || t.age_min >= 0).toBe(true);
-      expect(t.links.gmgn).toContain(row.address);
+      expect(t.links.gmgn).toBe(`https://gmgn.ai/sol/token/${row.address}`);
       expect(t.gmgn).toBeTruthy();
     }
   });

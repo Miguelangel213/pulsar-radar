@@ -27,7 +27,7 @@ links:                              # se generan solas con la dirección del con
   dexscreener_chart: "https://dexscreener.com/solana/{pair_address}?embed=1&theme=dark&info=0&trades=0"
   solscan: "https://solscan.io/token/{address}"
   birdeye: "https://birdeye.so/token/{address}?chain=solana"
-  gmgn: "https://gmgn.ai/?chain=sol&token={address}"
+  gmgn: "https://gmgn.ai/sol/token/{address}"   # ficha de la moneda (el formato ?chain=&token= abre la portada de trenches)
 
 scanner:
   db_path: "data/radar.db"          # SQLite local (tokens + histórico)

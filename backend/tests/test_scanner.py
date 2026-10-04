@@ -124,7 +124,7 @@ def test_links_are_generated_from_addresses():
     assert t.links["dexscreener"] == "https://dexscreener.com/solana/pairMINT123"
     assert t.links["solscan"] == "https://solscan.io/token/MINT123"
     assert t.links["birdeye"] == "https://birdeye.so/token/MINT123?chain=solana"
-    assert t.links["gmgn"] == "https://gmgn.ai/?chain=sol&token=MINT123"
+    assert t.links["gmgn"] == "https://gmgn.ai/sol/token/MINT123"
     assert t.links["dexscreener_chart"].startswith("https://dexscreener.com/solana/pairMINT123?")
 
 
