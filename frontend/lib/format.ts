@@ -24,4 +24,10 @@ export function age(min: number | null | undefined): string {
 export const int = (n: number) => n.toLocaleString("es");
 export const shortAddr = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
 export const riskKey = (l: string) => ({ "Sólido": "solid", Moderado: "moderate", Alto: "high", Extremo: "extreme" }[l] ?? "moderate");
-export const DEX_LABEL: Record<string, string> = { pumpfun: "pump.fun", pumpswap: "PumpSwap", raydium: "Raydium", meteoradbc: "Meteora", meteora: "Meteora" };
+export const DEX_LABEL: Record<string, string> = {
+  pumpfun: "pump.fun", pumpswap: "PumpSwap", raydium: "Raydium", meteoradbc: "Meteora", meteora: "Meteora",
+  pump: "pump.fun", pump_amm: "PumpSwap", meteora_virtual_curve: "Meteora", meteora_damm_v2: "Meteora", meteora_dlmm: "Meteora",
+};
+/** Número o guion si la fuente no lo informa. */
+export const orDash = (n: number | null | undefined): string => (n === null || n === undefined ? "—" : String(n));
+export const rate = (n: number | null | undefined): string => (n === null || n === undefined ? "—" : `${(n * 100).toFixed(1)}%`);

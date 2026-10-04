@@ -5,6 +5,7 @@ import { AlertToasts } from "@/components/AlertToasts";
 import { Hero } from "@/components/Hero";
 import { DetailPanel } from "@/components/DetailPanel";
 import { ScatterMap } from "@/components/ScatterMap";
+import { SourceSettings } from "@/components/SourceSettings";
 import { FilterBar } from "@/components/FilterBar";
 import { ModeBanner } from "@/components/ModeBanner";
 import { RadarTable } from "@/components/RadarTable";
@@ -23,7 +24,8 @@ export default function RadarPage() {
   const [stage, setStage] = useState<StageKey>("new_creation");
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [sort, setSort] = useState<SortKey>("adjusted");
-  const { data, error, loading, updatedAt } = useRadar(stage, filters, sort, undefined);
+  const [reload, setReload] = useState(0);
+  const { data, error, loading, updatedAt } = useRadar(stage, filters, sort, undefined, reload);
   const [view, setView] = useState<"table" | "map">("table");
   const [sel, setSel] = useState<RadarItem | null>(null);
   // el panel sigue al token seleccionado aunque se actualicen los datos (o salga de la lista)
@@ -45,8 +47,9 @@ export default function RadarPage() {
 
   return (
     <div className="min-h-dvh flex flex-col">
-      <ModeBanner ready={!!data || !!updatedAt} />
+      <ModeBanner ready={!!data || !!updatedAt} source={data?.mode} gmgn={data?.meta.gmgn} />
       <TopBar ready={!!data || !!updatedAt}>
+        <SourceSettings source={data?.mode} status={data?.meta.gmgn} onApplied={() => { setSel(null); setReload((n) => n + 1); }} />
         <AlertBell history={alerts.history} unread={alerts.unread} muted={muted} onToggleMute={toggleMute}
           onOpenPanel={alerts.markRead} onSelect={openFromAlert} onTest={alerts.test} />
       </TopBar>
@@ -63,7 +66,7 @@ export default function RadarPage() {
       </main>
       {shown && data && <DetailPanel key={shown.entry.token.address} item={shown} onClose={() => setSel(null)} />}
       <AlertToasts toasts={alerts.toasts} onClose={alerts.dismiss} onOpen={openFromAlert} />
-      <StatusBar updatedAt={updatedAt} error={!!error} count={data?.count ?? null} quadrant={data?.items.filter((i) => i.quadrant).length ?? 0} />
+      <StatusBar source={data?.mode} updatedAt={updatedAt} error={!!error} count={data?.count ?? null} quadrant={data?.items.filter((i) => i.quadrant).length ?? 0} />
     </div>
   );
 }

@@ -2,8 +2,8 @@
 import { useEffect } from "react";
 import type { AlertEvent } from "@/lib/types";
 
-const TONE: Record<string, string> = { quadrant: "border-l-solid", test: "border-l-dim" };
-const LABEL: Record<string, string> = { quadrant: "Cuadrante", test: "Prueba" };
+const TONE: Record<string, string> = { quadrant: "border-l-solid", smart_money: "border-l-flame", test: "border-l-dim" };
+const LABEL: Record<string, string> = { quadrant: "Cuadrante", smart_money: "Smart money", test: "Prueba" };
 
 function Toast({ ev, onClose, onOpen }: { ev: AlertEvent; onClose: () => void; onOpen: () => void }) {
   useEffect(() => { const id = setTimeout(onClose, 9000); return () => clearTimeout(id); }, [onClose]);

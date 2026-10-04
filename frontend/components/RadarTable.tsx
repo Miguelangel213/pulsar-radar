@@ -1,6 +1,6 @@
 "use client";
 import { useLayoutEffect, useRef } from "react";
-import { DEX_LABEL, age, pct, shortAddr, usd } from "@/lib/format";
+import { DEX_LABEL, age, orDash, pct, shortAddr, usd } from "@/lib/format";
 import type { RadarItem, SortKey } from "@/lib/types";
 import { RiskBadge } from "./RiskBadge";
 import { QuickLinks } from "./QuickLinks";
@@ -64,10 +64,13 @@ export function RadarTable({ items, sort, onSort, onSelect, selected }: { items:
                   <span className="text-[14px] font-medium shrink-0 max-w-[140px] truncate">{t.symbol}</span>
                   <span className="text-[12px] text-dim truncate">{t.name}</span>
                 </div>
-                <div className="flex items-center gap-2 mt-0.5 whitespace-nowrap overflow-hidden">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
                   <span className="text-[10px] text-dim border border-line px-1 shrink-0">{DEX_LABEL[t.dex_id] ?? t.dex_id}</span>
                   <span className="num text-[11px] text-faint shrink-0">{shortAddr(t.address)}</span>
                   {t.boosts_active > 0 && <span className="num text-[10px] text-flame border border-flame/40 px-1 shrink-0">boost {t.boosts_active}</span>}
+                  {(t.gmgn?.smart_degen_count ?? 0) > 0 && <span className="num text-[10px] text-solid border border-solid/40 px-1 shrink-0" title="Wallets de smart money dentro del token (GMGN)">smart {t.gmgn!.smart_degen_count}</span>}
+                  {(t.gmgn?.renowned_count ?? 0) > 0 && <span className="num text-[10px] text-flame border border-flame/40 px-1 shrink-0" title="KOLs / wallets reconocidas dentro del token (GMGN)">KOL {t.gmgn!.renowned_count}</span>}
+                  {t.gmgn?.progress != null && t.gmgn.progress < 1 && <span className="num text-[10px] text-dim border border-line px-1 shrink-0" title="Avance de la bonding curve">curva {Math.round(t.gmgn.progress * 100)}%</span>}
                   {it.quadrant && <span className="text-[10px] text-solid border border-solid/40 px-1 shrink-0">alto potencial, bajo riesgo</span>}
                   {it.entry.verdict === "red_flags" && <span className="text-[10px] text-high border border-high/40 px-1 shrink-0">{it.entry.failed.length} marca{it.entry.failed.length > 1 ? "s" : ""} roja{it.entry.failed.length > 1 ? "s" : ""}</span>}
                 </div>
@@ -75,11 +78,11 @@ export function RadarTable({ items, sort, onSort, onSelect, selected }: { items:
               </div>
               <div role="cell" className="max-sm:hidden num text-[13px] text-right">{age(t.age_min)}</div>
               <div role="cell" className="max-sm:hidden num text-[13px] text-right">{usd(t.market_cap)}</div>
-              <div role="cell" className="max-sm:hidden num text-[13px] text-right text-dim" title={t.liquidity_usd === null ? "Par en bonding curve: DexScreener no informa liquidez" : undefined}>{t.liquidity_usd === null ? "curva" : usd(t.liquidity_usd)}</div>
+              <div role="cell" className="max-sm:hidden num text-[13px] text-right text-dim" title={t.liquidity_usd === null ? (t.gmgn ? "GMGN no informa la liquidez en dólares de este token" : "Par en bonding curve: DexScreener no informa liquidez") : undefined}>{t.liquidity_usd === null ? (t.gmgn ? "—" : "curva") : usd(t.liquidity_usd)}</div>
               <div role="cell" className="max-sm:hidden num text-[13px] text-right text-dim">{usd(t.volume.h1)}</div>
               <div role="cell" className="max-sm:hidden">
-                <div className="num text-[12px] text-right"><span className="text-solid">{t.buys.h1}</span><span className="text-faint"> / </span><span className="text-extreme">{t.sells.h1}</span></div>
-                <div className="h-[3px] mt-1 bg-extreme/50"><div className="h-full bg-solid" style={{ width: `${buyShare}%` }} /></div>
+                <div className="num text-[12px] text-right"><span className="text-solid">{orDash(t.buys.h1)}</span><span className="text-faint"> / </span><span className="text-extreme">{orDash(t.sells.h1)}</span></div>
+                {known && <div className="h-[3px] mt-1 bg-extreme/50"><div className="h-full bg-solid" style={{ width: `${buyShare}%` }} /></div>}
               </div>
               <div role="cell" className={`max-sm:hidden num text-[13px] text-right ${chg === null ? "text-faint" : chg >= 0 ? "text-solid" : "text-extreme"}`}>{pct(chg)}</div>
               <div role="cell"><ScoreBar value={it.potential.score} dim={rejected} /></div>

@@ -22,6 +22,7 @@ export function QuickLinks({ token, compact }: { token: Token; compact?: boolean
     { key: "chart", emoji: "📊", label: "Chart", href: token.links.dexscreener_chart },
     { key: "solscan", emoji: "🔍", label: "Solscan", href: token.links.solscan },
     { key: "birdeye", emoji: "🦅", label: "Birdeye", href: token.links.birdeye },
+    ...(token.links.gmgn ? [{ key: "gmgn", emoji: "🟢", label: "GMGN", href: token.links.gmgn }] : []),
   ];
   const base = compact
     ? "size-7 inline-flex items-center justify-center border border-line hover:border-flame hover:bg-raise text-[13px]"

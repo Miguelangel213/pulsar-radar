@@ -5,7 +5,7 @@ import { audioReady, playTones } from "@/lib/sound";
 import type { AlertEvent, AlertsResponse } from "@/lib/types";
 
 const POLL_MS = 5000;
-const FALLBACK_SOUND = { quadrant: [660, 990], volume: 0.12 };
+const FALLBACK_SOUND = { quadrant: [660, 990], smart_money: [880, 1320], volume: 0.12 };
 
 export function useAlerts(muted: boolean) {
   const [history, setHistory] = useState<AlertEvent[]>([]);
@@ -25,7 +25,7 @@ export function useAlerts(muted: boolean) {
     if (!mutedRef.current && audioReady()) {
       const snd = cfgRef.current?.sound ?? FALLBACK_SOUND;
       const e = evs[evs.length - 1];
-      playTones(snd.quadrant, snd.volume);
+      playTones(e.type === "smart_money" ? (snd.smart_money ?? snd.quadrant) : snd.quadrant, snd.volume);
     }
   }, []);
 

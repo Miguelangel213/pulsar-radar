@@ -5,12 +5,12 @@ import type { Filters, RadarResponse, SortKey, StageKey } from "@/lib/types";
 
 const REFRESH_MS = 5000;
 
-export function useRadar(stage: StageKey, filters: Filters, sort: SortKey, order: "asc" | "desc" | undefined) {
+export function useRadar(stage: StageKey, filters: Filters, sort: SortKey, order: "asc" | "desc" | undefined, reload = 0) {
   const [data, setData] = useState<RadarResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
-  const key = JSON.stringify([stage, filters, sort, order]);
+  const key = JSON.stringify([stage, filters, sort, order, reload]);
   const lastKey = useRef(key);
 
   useEffect(() => {

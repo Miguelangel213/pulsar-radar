@@ -132,4 +132,5 @@ alerts:
   max_stored: 200
   sound:                           # frecuencias (Hz) de las dos notas y volumen 0-1
     quadrant: [660, 990]
+    smart_money: [880, 1320]
     volume: 0.12

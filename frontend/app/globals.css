@@ -35,7 +35,7 @@ body { min-height: 100dvh; -webkit-font-smoothing: antialiased; }
 
 /* Rejilla de la tabla: una sola definición para cabecera y filas */
 .radar-grid { display: grid; align-items: center; column-gap: 14px;
-  grid-template-columns: 32px minmax(260px, 1.7fr) 62px 82px 82px 82px 92px 72px minmax(120px, 1fr) minmax(130px, 0.9fr) 190px; }
+  grid-template-columns: 32px minmax(260px, 1.7fr) 62px 82px 82px 82px 92px 72px minmax(120px, 1fr) minmax(130px, 0.9fr) 224px; }
 
 @media (max-width: 639px) { .radar-grid { grid-template-columns: 22px minmax(0, 1fr) 92px auto; column-gap: 10px; } }
 

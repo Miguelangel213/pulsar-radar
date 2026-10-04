@@ -63,5 +63,5 @@ export interface AlertEvent {
 }
 export interface AlertsResponse {
   events: AlertEvent[]; last_id: number;
-  config: { sound: { quadrant: number[]; volume: number } };
+  config: { sound: { quadrant: number[]; smart_money?: number[]; volume: number } };
 }

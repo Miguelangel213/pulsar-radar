@@ -215,7 +215,7 @@ describe("escáner de GMGN con datos reales", () => {
   });
 
   it("un token que sale en trenches y en ranking se fusiona en uno solo con ambas etapas", async () => {
-    const shared = { ...NEAR[0] }, r = { ...RANK[0], address: shared.address };
+    const shared: Pair = { ...NEAR[0] }, r: Pair = { ...RANK[0], address: shared.address };
     const { client } = setup((c) => json(c.url.includes("/v1/trenches") ? { code: 0, data: { new_creation: [], near_completion: [shared], completed: [] } } : { code: 0, data: { code: 0, data: { rank: [r] } } }));
     const es = await new GmgnScanner(client, cfg, () => NOW).scan(true);
     expect(es.length).toBe(1);

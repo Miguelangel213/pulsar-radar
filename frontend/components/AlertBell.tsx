@@ -41,11 +41,11 @@ export function AlertBell({ history, unread, muted, onToggleMute, onOpenPanel, o
             </button>
           </div>
           <ul className="max-h-[320px] overflow-y-auto divide-y divide-line">
-            {history.length === 0 && <li className="px-4 py-8 text-center text-[13px] text-dim">Aún no hay alertas. Te avisaré cuando un token entre a alto potencial, bajo riesgo.</li>}
+            {history.length === 0 && <li className="px-4 py-8 text-center text-[13px] text-dim">Aún no hay alertas. Te avisaré cuando un token entre a alto potencial, bajo riesgo (y, con GMGN, cuando entre smart money a un token recién creado).</li>}
             {history.map((e) => (
               <li key={e.id}>
                 <button onClick={() => { if (e.address) { onSelect(e); setOpen(false); } }} disabled={!e.address} className="w-full text-left px-4 py-2.5 hover:bg-raise disabled:cursor-default">
-                  <div className="flex items-center justify-between text-[11px] text-dim"><span>{e.type === "quadrant" ? "Cuadrante" : "Prueba"}</span><span className="num">{ago(e.ts)}</span></div>
+                  <div className="flex items-center justify-between text-[11px] text-dim"><span>{e.type === "quadrant" ? "Cuadrante" : e.type === "smart_money" ? "Smart money" : "Prueba"}</span><span className="num">{ago(e.ts)}</span></div>
                   <div className="text-[13px] mt-0.5 leading-snug">{e.message}</div>
                 </button>
               </li>

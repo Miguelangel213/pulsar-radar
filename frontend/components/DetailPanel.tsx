@@ -1,15 +1,49 @@
 "use client";
 import { useEffect, useRef } from "react";
-import { DEX_LABEL, age, pct, price, riskKey, usd } from "@/lib/format";
-import type { RadarItem, Win } from "@/lib/types";
+import { DEX_LABEL, age, orDash, pct, price, rate, riskKey, usd } from "@/lib/format";
+import type { GmgnData, RadarItem, Win } from "@/lib/types";
 import { QuickLinks } from "./QuickLinks";
 import { RiskBadge } from "./RiskBadge";
 
-const RISK_LABEL: Record<string, string> = { liquidity: "Liquidez", age: "Edad del par", sell_pressure: "Presión de venta", drop: "Caída de precio 1 h", contract: "Seguridad del contrato" };
-const POT_LABEL: Record<string, string> = { liquidity: "Liquidez", volume: "Volumen", market_cap: "Espacio por market cap", age: "Edad del par", buy_sell: "Ratio compras/ventas" };
-const GATE_LABEL: Record<string, string> = { min_liquidity: "Liquidez mínima", min_activity: "Actividad mínima", dump_h1: "Caída brusca en 1 h", sell_wall: "Muro de ventas" };
+const RISK_LABEL: Record<string, string> = { liquidity: "Liquidez", age: "Edad del par", sell_pressure: "Presión de venta", drop: "Caída de precio 1 h", contract: "Seguridad del contrato", holders: "Holders (bundlers, top 10)", dev: "Dev" };
+const POT_LABEL: Record<string, string> = { liquidity: "Liquidez", volume: "Volumen", market_cap: "Espacio por market cap", age: "Edad del par", buy_sell: "Ratio compras/ventas", smart_money: "Smart money y KOLs" };
+const GATE_LABEL: Record<string, string> = {
+  min_liquidity: "Liquidez mínima", min_activity: "Actividad mínima", dump_h1: "Caída brusca en 1 h", sell_wall: "Muro de ventas",
+  honeypot: "Honeypot", tax: "Impuestos de compra/venta", mint_authority: "Mint sin renunciar", freeze_authority: "Freeze sin renunciar", wash_trading: "Wash trading",
+  rug_ratio: "Rug ratio", bundlers: "Bundlers", top10: "Concentración top 10", snipers: "Snipers", insiders: "Insiders", dev_holding: "Holding del dev", serial_deployer: "Dev lanzador en serie",
+};
 const RISK_BAR: Record<string, string> = { solid: "bg-solid", moderate: "bg-moderate", high: "bg-high", extreme: "bg-extreme" };
 const WINDOWS: [keyof Win, string][] = [["m5", "5m"], ["h1", "1h"], ["h6", "6h"], ["h24", "24h"]];
+
+const DEV_STATUS: Record<string, string> = { creator_hold: "Mantiene tokens", creator_close: "Vendió todo" };
+
+/** Datos de seguridad, holders y dev que solo trae GMGN. */
+function GmgnSection({ g }: { g: GmgnData }) {
+  const yn = (v: boolean | null, yes: string, no: string) => (v === null ? "—" : v ? yes : no);
+  const rows: [string, string][] = [
+    ["Holders", orDash(g.holders)], ["Top 10 holders", rate(g.top10_rate)], ["Rug ratio", g.rug_ratio === null ? "—" : g.rug_ratio.toFixed(2)], ["Bundlers", rate(g.bundler_rate)],
+    ["Snipers", orDash(g.sniper_count)], ["Insiders", rate(g.insider_rate)], ["Bots", rate(g.bot_rate)], ["Wallets nuevas", rate(g.fresh_wallet_rate)],
+    ["Dev retiene", rate(g.dev_hold_rate)], ["Estado del dev", g.dev_status ? DEV_STATUS[g.dev_status] ?? g.dev_status : "—"],
+    ["Lanzamientos del dev", g.dev_created_count === null ? "—" : `${g.dev_created_count}${g.dev_open_ratio === null ? "" : ` · ${rate(g.dev_open_ratio)} prosperaron`}`],
+    ["Smart money", orDash(g.smart_degen_count)], ["KOLs", orDash(g.renowned_count)], ["Honeypot", yn(g.honeypot, "Sí", "No")],
+    ["Mint renunciado", yn(g.renounced_mint, "Sí", "No")], ["Freeze renunciado", yn(g.renounced_freeze, "Sí", "No")],
+    ["Impuestos", g.buy_tax === null && g.sell_tax === null ? "—" : `${rate(g.buy_tax ?? 0)} / ${rate(g.sell_tax ?? 0)}`], ["Wash trading", yn(g.wash_trading, "Sí", "No")],
+  ];
+  return (
+    <section>
+      <h3 className="text-[13px] font-medium mb-3">Seguridad, holders y dev <span className="text-faint font-normal">(GMGN)</span></h3>
+      {g.progress !== null && g.progress < 1 && (
+        <div className="mb-3">
+          <div className="flex justify-between text-[12px] text-dim mb-1"><span>Bonding curve</span><span className="num text-ink">{Math.round(g.progress * 100)}%</span></div>
+          <div className="h-[5px] bg-line"><div className="h-full bg-flame" style={{ width: `${g.progress * 100}%` }} /></div>
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-[13px]">
+        {rows.map(([k, v]) => <div key={k} className="flex justify-between gap-3 border-b border-line pb-1.5"><span className="text-dim shrink-0">{k}</span><span className="num text-right break-words min-w-0">{v}</span></div>)}
+      </div>
+    </section>
+  );
+}
 
 function Row({ label, value, bar, unavailable }: { label: string; value: number; bar: string; unavailable?: boolean }) {
   return (
@@ -37,7 +71,7 @@ export function DetailPanel({ item, onClose }: { item: RadarItem; onClose: () =>
   const key: [string, string][] = [
     ["Market cap", usd(t.market_cap)], ["Liquidez", t.liquidity_usd === null ? "curva (sin dato)" : usd(t.liquidity_usd)],
     ["Volumen 24h", usd(t.volume.h24)], ["FDV", usd(t.fdv)], ["Edad del par", age(t.age_min)], ["Precio", price(t.price_usd)],
-    ["Compras 24h", String(t.buys.h24)], ["Ventas 24h", String(t.sells.h24)],
+    ["Compras 24h", orDash(t.buys.h24)], ["Ventas 24h", orDash(t.sells.h24)],
   ];
   const copyCa = () => { void navigator.clipboard?.writeText(t.address); };
 
@@ -85,7 +119,9 @@ export function DetailPanel({ item, onClose }: { item: RadarItem; onClose: () =>
             </div>
           </div>
           {rejected && <p className="text-[13px] text-extreme border border-extreme/40 bg-extreme/10 px-3 py-2">Descartado por un gate de rechazo. Queda fuera del ranking.</p>}
-          <p className="text-[12px] text-dim border border-line px-3 py-2 leading-relaxed">Este riesgo mide solo el mercado (liquidez, edad, ventas, caída). DexScreener no informa si el contrato es seguro, quién tiene los tokens ni qué hace el dev: revísalo por tu cuenta antes de decidir nada.</p>
+          {t.gmgn
+            ? <p className="text-[12px] text-dim border border-line px-3 py-2 leading-relaxed">Este riesgo incluye las señales de seguridad, holders y dev que informa GMGN. Son indicios, no garantías: revisa el contrato por tu cuenta antes de decidir nada.</p>
+            : <p className="text-[12px] text-dim border border-line px-3 py-2 leading-relaxed">Este riesgo mide solo el mercado (liquidez, edad, ventas, caída). DexScreener no informa si el contrato es seguro, quién tiene los tokens ni qué hace el dev: revísalo por tu cuenta antes de decidir nada.</p>}
 
           <section>
             <h3 className="text-[13px] font-medium mb-3">Por qué este riesgo</h3>
@@ -100,8 +136,10 @@ export function DetailPanel({ item, onClose }: { item: RadarItem; onClose: () =>
           <section className="space-y-2.5">
             <h3 className="text-[13px] font-medium mb-3">Subpuntajes de potencial <span className="text-faint font-normal">(más alto = más señales)</span></h3>
             {Object.entries(item.potential.subscores).map(([k, v]) => <Row key={k} label={POT_LABEL[k] ?? k} value={v} unavailable={item.potential.unavailable.includes(k)} bar="bg-ink" />)}
-            {item.potential.unavailable.length > 0 && <p className="text-[11px] text-faint">«Sin dato» = DexScreener no lo informa o la muestra es muy pequeña; en el cálculo cuenta como neutro (50).</p>}
+            {item.potential.unavailable.length > 0 && <p className="text-[11px] text-faint">«Sin dato» = la fuente no lo informa o la muestra es muy pequeña; en el cálculo cuenta como neutro (50).</p>}
           </section>
+
+          {t.gmgn && <GmgnSection g={t.gmgn} />}
 
           <section>
             <h3 className="text-[13px] font-medium mb-3">Hard gates <span className="text-faint font-normal">({item.entry.failed.length} fallidos)</span></h3>
@@ -127,8 +165,8 @@ export function DetailPanel({ item, onClose }: { item: RadarItem; onClose: () =>
               <thead><tr className="text-dim text-right"><th className="text-left font-normal pb-1.5"></th>{WINDOWS.map(([, l]) => <th key={l} className="font-normal pb-1.5">{l}</th>)}</tr></thead>
               <tbody className="[&_td]:py-1 [&_td]:text-right [&_tr]:border-t [&_tr]:border-line">
                 <tr><td className="!text-left text-dim">Volumen</td>{WINDOWS.map(([k]) => <td key={k}>{usd(t.volume[k])}</td>)}</tr>
-                <tr><td className="!text-left text-dim">Compras</td>{WINDOWS.map(([k]) => <td key={k} className="text-solid">{t.buys[k]}</td>)}</tr>
-                <tr><td className="!text-left text-dim">Ventas</td>{WINDOWS.map(([k]) => <td key={k} className="text-extreme">{t.sells[k]}</td>)}</tr>
+                <tr><td className="!text-left text-dim">Compras</td>{WINDOWS.map(([k]) => <td key={k} className="text-solid">{orDash(t.buys[k])}</td>)}</tr>
+                <tr><td className="!text-left text-dim">Ventas</td>{WINDOWS.map(([k]) => <td key={k} className="text-extreme">{orDash(t.sells[k])}</td>)}</tr>
                 <tr><td className="!text-left text-dim">Precio</td>{WINDOWS.map(([k]) => <td key={k} className={(t.price_change[k] ?? 0) >= 0 ? "text-solid" : "text-extreme"}>{pct(t.price_change[k])}</td>)}</tr>
               </tbody>
             </table>
