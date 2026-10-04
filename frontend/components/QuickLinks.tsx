@@ -18,11 +18,11 @@ async function copyText(text: string): Promise<boolean> {
 export function QuickLinks({ token, compact }: { token: Token; compact?: boolean }) {
   const [state, setState] = useState<"idle" | "ok" | "fail">("idle");
   const items = [
+    ...(token.links.gmgn ? [{ key: "gmgn", emoji: "🟢", label: "GMGN", href: token.links.gmgn }] : []),
     { key: "dex", emoji: "📈", label: "DexScreener", href: token.links.dexscreener },
     { key: "chart", emoji: "📊", label: "Chart", href: token.links.dexscreener_chart },
     { key: "solscan", emoji: "🔍", label: "Solscan", href: token.links.solscan },
     { key: "birdeye", emoji: "🦅", label: "Birdeye", href: token.links.birdeye },
-    ...(token.links.gmgn ? [{ key: "gmgn", emoji: "🟢", label: "GMGN", href: token.links.gmgn }] : []),
   ];
   const base = compact
     ? "size-7 inline-flex items-center justify-center border border-line hover:border-flame hover:bg-raise text-[13px]"

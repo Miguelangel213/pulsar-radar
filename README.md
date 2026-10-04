@@ -17,7 +17,8 @@
 - **Ordena todo del mejor al más riesgoso** y marca los tokens de *alto potencial y bajo riesgo*.
 - **Mapa visual** que coloca cada token según su potencial y su riesgo.
 - **Ficha de cada token** con market cap, liquidez, volumen, edad, compras y ventas, sitio web y redes.
-- **Enlaces rápidos** a DexScreener, el gráfico, Solscan y Birdeye, y botón para copiar el contract address.
+- **Enlaces rápidos** a GMGN, DexScreener, el gráfico, Solscan y Birdeye, y botón para copiar el contract address.
+- **Datos de GMGN opcionales:** con tu propia API key ves los tokens desde sus primeros minutos, con señales de seguridad, holders y smart money. La key se queda solo en tu navegador.
 - **Alertas** visuales y sonoras cuando un token entra a la zona de alto potencial y bajo riesgo.
 - **Funciona en el móvil** y se actualiza solo.
 
