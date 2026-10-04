@@ -28,7 +28,8 @@
     "dexscreener": "https://dexscreener.com/solana/{pair_address}",
     "dexscreener_chart": "https://dexscreener.com/solana/{pair_address}?embed=1&theme=dark&info=0&trades=0",
     "solscan": "https://solscan.io/token/{address}",
-    "birdeye": "https://birdeye.so/token/{address}?chain=solana"
+    "birdeye": "https://birdeye.so/token/{address}?chain=solana",
+    "gmgn": "https://gmgn.ai/?chain=sol&token={address}"
   },
   "scanner": {
     "db_path": "data/radar.db",
@@ -84,6 +85,79 @@
       "severity": "red_flag",
       "max_sell_to_buy": 2,
       "min_txns_h1": 20
+    }
+  },
+  "gmgn": {
+    "base_url": "https://openapi.gmgn.ai",
+    "chain": "sol",
+    "rank_interval": "1h",
+    "scan_interval_s": 20,
+    "cache_ttl_s": 15,
+    "min_pause_s": 30,
+    "max_pause_s": 900,
+    "trenches_body": {
+      "filters": [
+        "offchain",
+        "onchain"
+      ],
+      "launchpad_platform_v2": true,
+      "limit": 80,
+      "quote_address_type": [
+        4,
+        5,
+        3,
+        1,
+        13,
+        0
+      ]
+    }
+  },
+  "gmgn_gates": {
+    "honeypot": {
+      "severity": "reject"
+    },
+    "tax": {
+      "severity": "reject",
+      "max": 0.1
+    },
+    "mint_authority": {
+      "severity": "red_flag"
+    },
+    "freeze_authority": {
+      "severity": "red_flag"
+    },
+    "wash_trading": {
+      "severity": "reject"
+    },
+    "rug_ratio": {
+      "severity": "red_flag",
+      "max": 0.3,
+      "reject_above": 0.8
+    },
+    "bundlers": {
+      "severity": "red_flag",
+      "max_rate": 0.35
+    },
+    "top10": {
+      "severity": "red_flag",
+      "max_rate": 0.4
+    },
+    "snipers": {
+      "severity": "red_flag",
+      "max_count": 10
+    },
+    "insiders": {
+      "severity": "red_flag",
+      "max_rate": 0.1
+    },
+    "dev_holding": {
+      "severity": "red_flag",
+      "max_rate": 0.15
+    },
+    "serial_deployer": {
+      "severity": "red_flag",
+      "min_created": 10,
+      "max_open_ratio": 0.1
     }
   },
   "scoring": {
@@ -178,11 +252,88 @@
         "m5_weight": 0.4
       }
     },
+    "gmgn": {
+      "risk_weights": {
+        "liquidity": 0.15,
+        "age": 0.1,
+        "sell_pressure": 0.15,
+        "drop": 0.1,
+        "contract": 0.2,
+        "holders": 0.2,
+        "dev": 0.1
+      },
+      "contract": {
+        "rug_ramp": [
+          0.1,
+          0.8
+        ],
+        "tax_ramp": [
+          0,
+          0.2
+        ],
+        "mint_points": 25,
+        "freeze_points": 20,
+        "wash_points": 40
+      },
+      "holders": {
+        "bundler_ramp": [
+          0.05,
+          0.5
+        ],
+        "top10_ramp": [
+          0.1,
+          0.6
+        ],
+        "sniper_ramp": [
+          0,
+          15
+        ],
+        "insider_ramp": [
+          0,
+          0.2
+        ],
+        "bot_ramp": [
+          0.1,
+          0.7
+        ]
+      },
+      "dev": {
+        "hold_ramp": [
+          0.02,
+          0.3
+        ],
+        "serial_points": 40
+      },
+      "potential_weights": {
+        "liquidity": 0.15,
+        "volume": 0.2,
+        "market_cap": 0.1,
+        "age": 0.1,
+        "buy_sell": 0.2,
+        "smart_money": 0.25
+      },
+      "smart_money": {
+        "smart_ramp": [
+          0,
+          10
+        ],
+        "renowned_ramp": [
+          0,
+          3
+        ],
+        "smart_weight": 0.7,
+        "renowned_weight": 0.3
+      }
+    },
     "ranking": {
       "risk_penalty": 0.8,
       "quadrant": {
         "min_potential": 65,
         "max_risk": 25
+      },
+      "quadrant_gmgn": {
+        "min_potential": 60,
+        "max_risk": 30
       }
     },
     "disclaimer": "El potencial es una probabilidad basada en señales de mercado de DexScreener. No es una predicción de precio ni una recomendación de compra. DexScreener no entrega seguridad del contrato, holders, dev ni smart money."
@@ -194,6 +345,11 @@
       "graduated"
     ],
     "quadrant_entry": true,
+    "smart_money": {
+      "enabled": true,
+      "max_age_min": 10,
+      "min_buyers": 1
+    },
     "max_stored": 200,
     "sound": {
       "quadrant": [

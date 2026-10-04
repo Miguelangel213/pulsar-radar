@@ -27,6 +27,7 @@ links:                              # se generan solas con la dirección del con
   dexscreener_chart: "https://dexscreener.com/solana/{pair_address}?embed=1&theme=dark&info=0&trades=0"
   solscan: "https://solscan.io/token/{address}"
   birdeye: "https://birdeye.so/token/{address}?chain=solana"
+  gmgn: "https://gmgn.ai/?chain=sol&token={address}"
 
 scanner:
   db_path: "data/radar.db"          # SQLite local (tokens + histórico)
@@ -55,6 +56,35 @@ gates:
   sell_wall:      { severity: red_flag, max_sell_to_buy: 2.0, min_txns_h1: 20 }
 
 # ---------------------------------------------------------------------------
+# GMGN (opcional, el visitante pone su propia API key en el navegador; sin key se usa DexScreener).
+# Umbrales calibrados con una muestra real: percentiles de rug_ratio, bundlers, top10, dev, smart money.
+# ---------------------------------------------------------------------------
+gmgn:
+  base_url: "https://openapi.gmgn.ai"
+  chain: sol
+  rank_interval: "1h"
+  scan_interval_s: 20               # GMGN free tiene límites bajos: consulta con calma
+  cache_ttl_s: 15
+  min_pause_s: 30                   # si GMGN pide esperar (429/ban), pausa al menos esto...
+  max_pause_s: 900                  # ...y como máximo esto
+  trenches_body: { filters: [offchain, onchain], launchpad_platform_v2: true, limit: 80, quote_address_type: [4, 5, 3, 1, 13, 0] }
+
+# Hard gates con datos de GMGN (solo se evalúan si el token trae datos de GMGN).
+gmgn_gates:
+  honeypot:        { severity: reject }
+  tax:             { severity: reject,   max: 0.10 }         # fracción: 0.10 = 10 %
+  mint_authority:  { severity: red_flag }
+  freeze_authority: { severity: red_flag }
+  wash_trading:    { severity: reject }
+  rug_ratio:       { severity: red_flag, max: 0.30, reject_above: 0.80 }
+  bundlers:        { severity: red_flag, max_rate: 0.35 }
+  top10:           { severity: red_flag, max_rate: 0.40 }
+  snipers:         { severity: red_flag, max_count: 10 }
+  insiders:        { severity: red_flag, max_rate: 0.10 }
+  dev_holding:     { severity: red_flag, max_rate: 0.15 }
+  serial_deployer: { severity: red_flag, min_created: 10, max_open_ratio: 0.10 }   # muchos lanzamientos y casi ninguno prospera
+
+# ---------------------------------------------------------------------------
 # Scoring inicial. Reglas explícitas, sin ML. "ramp" mapea lineal [lo, hi] -> [0, 100].
 # ---------------------------------------------------------------------------
 scoring:
@@ -76,9 +106,17 @@ scoring:
     market_cap: { log10_ramp: [4.0, 6.5] }           # más espacio de crecimiento con market cap bajo ($10K -> $3M)
     age: { age_ramp_min: [10, 1440] }                # más reciente = más espacio
     buy_sell: { buy_ratio_ramp: [0.45, 0.65], h1_weight: 0.6, m5_weight: 0.4 }
+  gmgn:                            # pesos y rampas cuando el token trae datos de GMGN
+    risk_weights: { liquidity: 0.15, age: 0.10, sell_pressure: 0.15, drop: 0.10, contract: 0.20, holders: 0.20, dev: 0.10 }
+    contract: { rug_ramp: [0.10, 0.80], tax_ramp: [0, 0.20], mint_points: 25, freeze_points: 20, wash_points: 40 }
+    holders: { bundler_ramp: [0.05, 0.50], top10_ramp: [0.10, 0.60], sniper_ramp: [0, 15], insider_ramp: [0, 0.20], bot_ramp: [0.10, 0.70] }
+    dev: { hold_ramp: [0.02, 0.30], serial_points: 40 }
+    potential_weights: { liquidity: 0.15, volume: 0.20, market_cap: 0.10, age: 0.10, buy_sell: 0.20, smart_money: 0.25 }
+    smart_money: { smart_ramp: [0, 10], renowned_ramp: [0, 3], smart_weight: 0.7, renowned_weight: 0.3 }
   ranking:
     risk_penalty: 0.8              # ajustado = potencial * (1 - riesgo/100 * penalty)
-    quadrant: { min_potential: 65, max_risk: 25 }    # "alto potencial, bajo riesgo"
+    quadrant: { min_potential: 65, max_risk: 25 }
+    quadrant_gmgn: { min_potential: 60, max_risk: 30 }   # con datos de GMGN la escala de riesgo es otra (suma holders y dev); calibrado con una muestra real    # "alto potencial, bajo riesgo"
   disclaimer: "El potencial es una probabilidad basada en señales de mercado de DexScreener. No es una predicción de precio ni una recomendación de compra. DexScreener no entrega seguridad del contrato, holders, dev ni smart money."
 
 # ---------------------------------------------------------------------------
@@ -87,6 +125,10 @@ scoring:
 alerts:
   stages: [new_creation, near_graduation, graduated]
   quadrant_entry: true
+  smart_money:                     # solo con datos de GMGN
+    enabled: true
+    max_age_min: 10                # X: minutos de vida máximos
+    min_buyers: 1                  # wallets smart money mínimas
   max_stored: 200
   sound:                           # frecuencias (Hz) de las dos notas y volumen 0-1
     quadrant: [660, 990]

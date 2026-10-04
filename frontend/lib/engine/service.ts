@@ -1,11 +1,10 @@
-import type { Cfg, ScoredEntry } from "./types";
-import type { TokenScanner } from "./scanner";
+import type { Cfg, Scanner, ScoredEntry } from "./types";
 
 export const SORT_KEYS: Record<string, (s: ScoredEntry) => number> = {
   adjusted: (s) => s.adjusted, potential: (s) => s.potential.score, risk: (s) => s.risk.score,
   age: (s) => s.entry.token.age_min ?? 1e12,
   market_cap: (s) => s.entry.token.market_cap ?? 0, liquidity: (s) => s.entry.token.liquidity_usd ?? 0,
-  volume: (s) => s.entry.token.volume.h1, txns: (s) => s.entry.token.buys.h1 + s.entry.token.sells.h1,
+  volume: (s) => s.entry.token.volume.h1 ?? 0, txns: (s) => (s.entry.token.buys.h1 ?? 0) + (s.entry.token.sells.h1 ?? 0),
   change: (s) => s.entry.token.price_change.h1 ?? -1e9,
 };
 const DEFAULT_ORDER: Record<string, "asc" | "desc"> = { adjusted: "desc", potential: "desc", risk: "asc", age: "asc" };
@@ -16,7 +15,7 @@ export interface Query {
 }
 
 export class RadarService {
-  constructor(readonly scanner: TokenScanner, readonly cfg: Cfg) {}
+  constructor(readonly scanner: Scanner, readonly cfg: Cfg) {}
 
   async scored(stage: string): Promise<ScoredEntry[]> {
     return (await this.scanner.scan()).filter((s) => (s.entry.token.stages as string[]).includes(stage));

@@ -124,13 +124,14 @@ def test_links_are_generated_from_addresses():
     assert t.links["dexscreener"] == "https://dexscreener.com/solana/pairMINT123"
     assert t.links["solscan"] == "https://solscan.io/token/MINT123"
     assert t.links["birdeye"] == "https://birdeye.so/token/MINT123?chain=solana"
+    assert t.links["gmgn"] == "https://gmgn.ai/?chain=sol&token=MINT123"
     assert t.links["dexscreener_chart"].startswith("https://dexscreener.com/solana/pairMINT123?")
 
 
 def test_scan_fills_links_on_every_token(tmp_path):
     client = FakeClient(pairs=[pair("A"), pair("B")], boosts_latest=["A", "B"])
     sc, _ = scanner(tmp_path, client)
-    assert all(set(e.entry.token.links) == {"dexscreener", "dexscreener_chart", "solscan", "birdeye"} for e in sc.scan())
+    assert all(set(e.entry.token.links) == {"dexscreener", "dexscreener_chart", "solscan", "birdeye", "gmgn"} for e in sc.scan())
 
 
 def test_sqlite_stores_required_fields_and_history(tmp_path):

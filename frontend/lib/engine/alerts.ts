@@ -1,5 +1,6 @@
 import { pyFixed } from "./pyfmt";
 import type { RadarService } from "./service";
+import type { ScoredEntry } from "./types";
 import type { AlertEvent } from "../types";
 
 /** Detecta entradas al cuadrante comparando cada escaneo con el anterior. El primero solo fija la línea base. */
@@ -13,30 +14,46 @@ export class AlertService {
 
   constructor(private service: RadarService, private clock: () => number = () => Date.now() / 1000) {}
 
+  private lastSource: string | undefined;
+
   private async scan(): Promise<void> {
     const a = this.service.cfg.alerts, nowQ = new Set<string>(), queued = new Set<string>();
-    const pending = [];
+    const pending: { type: "quadrant" | "smart_money"; s: ScoredEntry }[] = [];
+    const sm = a.smart_money;
     for (const st of a.stages) {
       for (const s of await this.service.scored(st)) {
         const t = s.entry.token;
-        if (s.entry.verdict === "rejected" || !s.quadrant) continue;
-        nowQ.add(t.address);
-        if (a.quadrant_entry && !this.inQuadrant.has(t.address) && !this.fired.has(t.address) && !queued.has(t.address)) { queued.add(t.address); pending.push(s); }
+        if (s.entry.verdict === "rejected") continue;
+        if (s.quadrant) {
+          nowQ.add(t.address);
+          const key = `quadrant:${t.address}`;
+          if (a.quadrant_entry && !this.inQuadrant.has(t.address) && !this.fired.has(key) && !queued.has(key)) { queued.add(key); pending.push({ type: "quadrant", s }); }
+        }
+        // Smart money: solo con datos de GMGN. Entra smart money a un token con menos de X minutos de vida.
+        const smart = t.gmgn?.smart_degen_count ?? 0, key = `smart_money:${t.address}`;
+        if (sm.enabled && t.gmgn && smart >= sm.min_buyers && t.age_min !== null && t.age_min <= sm.max_age_min && !this.fired.has(key) && !queued.has(key)) { queued.add(key); pending.push({ type: "smart_money", s }); }
       }
     }
+    const source = this.service.scanner.sourceId;
+    if (this.lastSource !== undefined && source !== this.lastSource) { this.baselineDone = false; this.inQuadrant = new Set(); }   // cambió de fuente: nueva línea base
+    this.lastSource = source;
     if (this.baselineDone) {
-      for (const s of pending) {
+      for (const { type, s } of pending) {
         const t = s.entry.token;
+        const age = (t.age_min ?? 0) < 1 ? "menos de 1 min" : `${pyFixed(t.age_min ?? 0, 0)} min`;
+        const n = t.gmgn?.smart_degen_count ?? 0;
         this.events_.push({
-          id: this.nextId++, type: "quadrant", ts: this.clock(), address: t.address, symbol: t.symbol,
+          id: this.nextId++, type, ts: this.clock(), address: t.address, symbol: t.symbol,
           stage: (a.stages.find((x: string) => (t.stages as string[]).includes(x)) ?? t.stages[0] ?? "") as AlertEvent["stage"],
-          message: `${t.symbol} entró a alto potencial, bajo riesgo (potencial ${pyFixed(s.potential.score, 0)}, riesgo ${pyFixed(s.risk.score, 0)})`,
+          message: type === "quadrant"
+            ? `${t.symbol} entró a alto potencial, bajo riesgo (potencial ${pyFixed(s.potential.score, 0)}, riesgo ${pyFixed(s.risk.score, 0)})`
+            : `Smart money entró a ${t.symbol} con ${age} de vida (${n} wallet${n > 1 ? "s" : ""})`,
           potential: s.potential.score, risk: s.risk.score, age_min: t.age_min || 0,
         });
       }
       this.events_ = this.events_.slice(-a.max_stored);
     }
-    for (const s of pending) this.fired.add(s.entry.token.address);
+    for (const { type, s } of pending) this.fired.add(`${type}:${s.entry.token.address}`);
     this.inQuadrant = nowQ;
     this.baselineDone = true;
   }

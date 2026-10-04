@@ -94,12 +94,15 @@ def test_alerts_endpoint(client):
     assert {"events", "last_id", "config"} <= set(d)
 
 
-def test_no_gmgn_dependencies_left():
+def test_no_api_key_hardcoded_anywhere():
+    """El backend nunca debe llevar una key escrita. (GMGN vuelve como fuente opcional: la key la pone cada visitante en su navegador.)"""
+    import re
     root = pathlib.Path(__file__).resolve().parent.parent
+    pattern = re.compile(r"gmgn_[0-9a-f]{20,}", re.I)
     for f in list(root.rglob("*.py")) + list(root.rglob("*.yaml")) + [root / "requirements.txt"]:
-        if f.name == "test_api.py" or "__pycache__" in f.parts:
+        if "__pycache__" in f.parts:
             continue
-        assert "gmgn" not in f.read_text(encoding="utf-8").lower(), f
+        assert not pattern.search(f.read_text(encoding="utf-8")), f
 
 
 def test_token_links_in_radar_response(client):

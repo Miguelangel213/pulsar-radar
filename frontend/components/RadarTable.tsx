@@ -52,7 +52,7 @@ export function RadarTable({ items, sort, onSort, onSelect, selected }: { items:
         </div>
         {items.map((it, i) => {
           const t = it.entry.token, rejected = it.entry.verdict === "rejected";
-          const total = t.buys.h1 + t.sells.h1, buyShare = total ? (t.buys.h1 / total) * 100 : 50;
+          const known = t.buys.h1 !== null && t.sells.h1 !== null, total = (t.buys.h1 ?? 0) + (t.sells.h1 ?? 0), buyShare = total ? ((t.buys.h1 ?? 0) / total) * 100 : 50;
           const chg = t.price_change.h1;
           return (
             <div key={t.address} role="row" tabIndex={0} onClick={() => onSelect(it)} onKeyDown={(e) => { if (e.key === "Enter") onSelect(it); }} aria-selected={selected === t.address}

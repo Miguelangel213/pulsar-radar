@@ -13,6 +13,14 @@ export interface RiskScore { score: number; level: string; subscores: Record<str
 export interface PotentialScore { score: number; subscores: Record<string, number>; unavailable: string[]; note: string }
 export interface ScoredEntry { entry: Entry; risk: RiskScore; potential: PotentialScore; adjusted: number; quadrant: boolean }
 
+/** Lo que RadarService y AlertService necesitan de una fuente de datos. */
+export interface Scanner {
+  scan(force?: boolean): Promise<ScoredEntry[]>;
+  readonly lastScan: number | null;
+  readonly lastError: string | null;
+  readonly sourceId?: string;
+}
+
 export interface DexClient {
   chain: string;
   boostsLatest(): Promise<Pair[]>;
